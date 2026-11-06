@@ -1,0 +1,114 @@
+spring:
+  application:
+    name: sarah-ai-agent
+  datasource:
+    url: ${SARAH_DB_URL:jdbc:postgresql://localhost:5432/sarah}
+    username: ${SARAH_DB_USERNAME:sarah}
+    password: ${SARAH_DB_PASSWORD:sarah}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  data:
+    redis:
+      host: ${SARAH_REDIS_HOST:localhost}
+      port: ${SARAH_REDIS_PORT:6379}
+  # SMTP is only auto-configured when a host is provided (e.g. Mailhog for local dev).
+  mail:
+    host: ${SARAH_MAIL_HOST:}
+    port: ${SARAH_MAIL_PORT:587}
+    username: ${SARAH_MAIL_USERNAME:}
+    password: ${SARAH_MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${SARAH_MAIL_AUTH:true}
+      mail.smtp.starttls.enable: ${SARAH_MAIL_STARTTLS:true}
+
+server:
+  port: 8080
+  error:
+    include-message: always
+    include-binding-errors: always
+  servlet:
+    session:
+      timeout: ${SARAH_SESSION_TIMEOUT:7d}
+      cookie:
+        http-only: true
+        same-site: lax
+        # Set to true behind HTTPS in production (e.g. SARAH_COOKIE_SECURE=true).
+        secure: ${SARAH_COOKIE_SECURE:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      show-details: when_authorized
+  metrics:
+    tags:
+      application: sarah-ai-agent
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} [trace=%X{traceId:-}] - %msg%n"
+  level:
+    com.oreostudios.sarah: INFO
+
+# ---------------------------------------------------------------------------
+# Sarah platform configuration
+# ---------------------------------------------------------------------------
+sarah:
+  # Brand info lives in the DB (brand_profile table). These are only bootstrap
+  # defaults used by the seed migration / first run.
+  llm:
+    # provider = mock (default, offline) | anthropic
+    provider: ${SARAH_LLM_PROVIDER:mock}
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      model: ${SARAH_LLM_MODEL:claude-opus-4-8}
+      max-tokens: 2048
+  security:
+    # Seeded owner account for first login. Change the password after first run.
+    bootstrap-admin:
+      email: ${SARAH_ADMIN_EMAIL:owner@oreostudios.com}
+      password: ${SARAH_ADMIN_PASSWORD:change-me-now}
+    cors:
+      allowed-origins: ${SARAH_CORS_ORIGINS:http://localhost:5173}
+    # Base64 of 32 bytes for AES-256-GCM token encryption. MUST be set in production.
+    token-encryption-key: ${SARAH_TOKEN_KEY:}
+  scheduling:
+    publish-interval-ms: ${SARAH_PUBLISH_INTERVAL_MS:30000}
+  auth:
+    # HMAC secret for verification codes. MUST be set in production (any long random string).
+    hmac-secret: ${SARAH_AUTH_HMAC_SECRET:dev-only-change-me-hmac-secret}
+    otp-ttl-seconds: 300
+    max-attempts: 5
+    resend-cooldown-seconds: 60
+    max-codes-per-email-per-hour: 5
+    max-codes-per-ip-per-hour: 20
+    email:
+      # log = dev (no real send, code never logged) | smtp = real delivery via spring.mail
+      provider: ${SARAH_AUTH_EMAIL_PROVIDER:log}
+      from: ${SARAH_AUTH_EMAIL_FROM:Sarah <sarah@oreostudios.com>}
+  autonomy:
+    # Global kill switch. When false, no autonomous publishing runs.
+    enabled: ${SARAH_AUTONOMY_ENABLED:true}
+    daily-post-limit: ${SARAH_DAILY_POST_LIMIT:10}
+    per-platform-cooldown-minutes: ${SARAH_PLATFORM_COOLDOWN:30}
+    max-llm-calls-per-run: ${SARAH_MAX_LLM_CALLS:25}
+    max-agent-hops: ${SARAH_MAX_AGENT_HOPS:12}
+  http:
+    # SSRF protection: outbound tool fetches are restricted to this allow-list.
+    outbound-allowed-hosts: ${SARAH_OUTBOUND_HOSTS:discord.com,discordapp.com}
