@@ -66,6 +66,7 @@ public class SeoController {
     }
     @Scheduled(cron="${SARAH_SEO_CRON:0 0 7 * * *}",zone="Europe/Paris")
     public void daily(){
+        if(!env.getProperty("SARAH_WORKSPACE_LEGACY_SCHEDULERS",Boolean.class,false))return;
         if(!env.getProperty("SARAH_SEO_SCHEDULE_ENABLED",Boolean.class,false)||!busy.compareAndSet(false,true))return;
         try{
             var report=crawler.crawl();

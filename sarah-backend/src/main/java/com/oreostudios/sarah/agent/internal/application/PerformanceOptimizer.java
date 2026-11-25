@@ -16,6 +16,7 @@ import java.util.*;
 public class PerformanceOptimizer {
     private final JdbcTemplate db;private final PublishingFacade publishing;private final AutonomyFacade autonomy;
     private final AuditFacade audit;private final boolean enabled;
+    @Value("${SARAH_WORKSPACE_LEGACY_SCHEDULERS:false}") private boolean legacySchedulersEnabled;
     public PerformanceOptimizer(JdbcTemplate db,PublishingFacade publishing,AutonomyFacade autonomy,AuditFacade audit,
             @Value("${SARAH_OPTIMIZATION_ENABLED:false}") boolean enabled){
         this.db=db;this.publishing=publishing;this.autonomy=autonomy;this.audit=audit;this.enabled=enabled;
@@ -34,7 +35,7 @@ public class PerformanceOptimizer {
         audit.record(actor,"PERFORMANCE_OBSERVED","publication",o.publicationId().toString(),"source="+o.source());
     }
     @Scheduled(cron="${SARAH_OPTIMIZATION_CRON:0 0 7 * * *}",zone="Europe/Paris")
-    public void daily(){if(enabled&&autonomy.isEnabled()) recompute("system");}
+    public void daily(){if(legacySchedulersEnabled&&enabled&&autonomy.isEnabled()) recompute("system");}
     @Transactional
     public Decision recompute(String actor){
         if(!autonomy.isEnabled())return new Decision(List.of(),false);
@@ -42,7 +43,7 @@ public class PerformanceOptimizer {
             (rs,i)->score(rs.getString("platform"),rs.getLong("impressions"),rs.getLong("conversions"),rs.getInt("posts")));
         Map<String,Score> by=new HashMap<>();for(var row:rows)by.put(row.platform(),row);
         List<Score> scores=new ArrayList<>();for(Platform p:Platform.values())scores.add(by.getOrDefault(p.code(),score(p.code(),0,0,0)));
-        for(var s:scores)db.update("INSERT INTO marketing_strategy_weight(platform,weight,impressions,conversions,posts,explanation,updated_at) VALUES (?,?,?,?,?,?,now()) ON CONFLICT(platform) DO UPDATE SET weight=excluded.weight,impressions=excluded.impressions,conversions=excluded.conversions,posts=excluded.posts,explanation=excluded.explanation,updated_at=now()",s.platform(),s.weight(),s.impressions(),s.conversions(),s.posts(),s.explanation());
+        for(var s:scores)db.update("INSERT INTO marketing_strategy_weight(platform,weight,impressions,conversions,posts,explanation,updated_at) VALUES (?,?,?,?,?,?,now()) ON CONFLICT(workspace_id,platform) DO UPDATE SET weight=excluded.weight,impressions=excluded.impressions,conversions=excluded.conversions,posts=excluded.posts,explanation=excluded.explanation,updated_at=now()",s.platform(),s.weight(),s.impressions(),s.conversions(),s.posts(),s.explanation());
         audit.record(actor,"MARKETING_STRATEGY_OPTIMIZED","marketing",null,"channels="+scores.size());
         return new Decision(List.copyOf(scores),true);
     }

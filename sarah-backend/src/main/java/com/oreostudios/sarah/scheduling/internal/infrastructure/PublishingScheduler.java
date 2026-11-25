@@ -21,6 +21,8 @@ public class PublishingScheduler {
     private static final Logger log = LoggerFactory.getLogger(PublishingScheduler.class); // Logger.
 
     private final PublishingFacade publishing; // Publishing port.
+    @org.springframework.beans.factory.annotation.Value("${SARAH_WORKSPACE_LEGACY_SCHEDULERS:false}")
+    private boolean legacySchedulersEnabled;
 
     /** @param publishing publishing port */
     public PublishingScheduler(PublishingFacade publishing) {
@@ -30,6 +32,7 @@ public class PublishingScheduler {
     /** Polls for due publications on a fixed delay and attempts each. */
     @Scheduled(fixedDelayString = "${sarah.scheduling.publish-interval-ms:30000}")
     public void publishDue() {
+        if (!legacySchedulersEnabled) return; // Legacy scheduler has no tenant principal; fail closed.
         List<UUID> due = publishing.dueIds(Instant.now()); // Find due items.
         if (due.isEmpty()) {
             return;

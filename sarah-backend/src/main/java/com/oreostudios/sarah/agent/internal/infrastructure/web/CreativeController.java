@@ -41,7 +41,7 @@ public class CreativeController {
         if(!req.confirmed()||req.brief()==null||req.brief().isBlank()||req.brief().length()>2000||!allowedSize(req.size()))
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Confirm paid image generation and provide a brief and supported size");
         UUID id=UUID.randomUUID();Date day=Date.valueOf(LocalDate.now(ZoneOffset.UTC));
-        int reserved=db.update("INSERT INTO creative_daily_quota(day,used) VALUES (?,1) ON CONFLICT(day) DO UPDATE SET used=creative_daily_quota.used+1 WHERE creative_daily_quota.used < ?",day,dailyLimit);
+        int reserved=db.update("INSERT INTO creative_daily_quota(day,used) VALUES (?,1) ON CONFLICT(workspace_id,day) DO UPDATE SET used=creative_daily_quota.used+1 WHERE creative_daily_quota.used < ?",day,dailyLimit);
         if(reserved!=1)throw new ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS,"Daily creative budget reached");
         db.update("INSERT INTO creative_asset(id,brief,model,size,status) VALUES (?,?,?,?,'GENERATING')",id,req.brief(),model,req.size());
         try{
