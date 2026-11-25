@@ -69,6 +69,27 @@ public class WorkspaceService {
         return new WorkspaceView(id, name, website, "OWNER");
     }
 
+    public record MemberView(String email, String role) {}
+
+    public List<MemberView> members(String actorEmail, UUID workspaceId) {
+        if (!"OWNER".equals(requireMember(actorEmail, workspaceId).role())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only company owners manage members");
+        }
+        return jdbc.query("SELECT email, role FROM workspace_membership WHERE workspace_id=? ORDER BY role,email",
+            (rs, n) -> new MemberView(rs.getString(1), rs.getString(2)), workspaceId);
+    }
+
+    @Transactional
+    public void removeMember(String actorEmail, UUID workspaceId, String email) {
+        if (!"OWNER".equals(requireMember(actorEmail, workspaceId).role())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only company owners manage members");
+        }
+        String target = normalize(email);
+        // There must always be at least one owner; transfer ownership is a separate guarded flow.
+        jdbc.update("DELETE FROM workspace_membership WHERE workspace_id=? AND email=? AND role <> 'OWNER'",
+            workspaceId, target);
+    }
+
     @Transactional
     public void addMember(String actorEmail, UUID workspaceId, String invitedEmail, String role) {
         WorkspaceView actor = requireMember(actorEmail, workspaceId);

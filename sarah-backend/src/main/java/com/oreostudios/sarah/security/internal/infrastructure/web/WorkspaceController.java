@@ -64,6 +64,17 @@ public class WorkspaceController {
         service.addMember(auth.getName(), id, req.email(), req.role());
     }
 
+    @GetMapping("/{id}/members")
+    public List<WorkspaceService.MemberView> members(@PathVariable UUID id, Authentication auth) {
+        return service.members(auth.getName(), id);
+    }
+
+    @DeleteMapping("/{id}/members/{email}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void removeMember(@PathVariable UUID id, @PathVariable String email, Authentication auth) {
+        service.removeMember(auth.getName(), id, email);
+    }
+
     public static UUID selected(HttpServletRequest request) {
         HttpSession session = request.getSession(false);
         Object value = session == null ? null : session.getAttribute(SESSION_KEY);
