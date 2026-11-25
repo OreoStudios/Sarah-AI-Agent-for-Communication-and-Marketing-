@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.RestController; // JSON REST cont
 import java.util.List; // Roles list.
 
 /** Returns the authenticated principal. Used by the dashboard after login. */
-@RestController // JSON controller.
+@RestController("principalAuthController") // Distinct bean from conversational AuthController.
 @RequestMapping("/api/v1/auth") // Base path.
 public class AuthController {
 
