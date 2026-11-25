@@ -9,6 +9,7 @@ import java.util.List; // Return type.
 
 /** Phase 1 placeholder: records intent to remember but performs no vector search. */
 @Component // Default SemanticMemory bean.
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(name="sarah.memory.enabled", havingValue="false", matchIfMissing=true)
 public class NoopSemanticMemory implements SemanticMemory {
 
     private static final Logger log = LoggerFactory.getLogger(NoopSemanticMemory.class); // Logger.
