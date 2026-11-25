@@ -1,0 +1,3 @@
+# WordPress publishing
+
+Set `SARAH_WEBSITE_WORDPRESS_ENABLED=true`, `SARAH_WORDPRESS_URL=https://your-authorized-site.example`, and include its host in SARAH_OUTBOUND_HOSTS. Create WEBSITE channel with config JSON `{\"username\":\"publisher\"}` and the WordPress application password as secret. Use a least-privileged publishing account. Enabling the connector allows actual publication via the existing campaign scheduler. Test on staging before production. Uses deterministic slug lookup to reconcile retries; do not manually retry ambiguous delivery without checking the CMS. See https://developer.wordpress.org/rest-api/reference/posts/.
