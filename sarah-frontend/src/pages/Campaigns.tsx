@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, type FormEvent } from 'react';
-import { api, type Campaign, type Draft } from '../api';
+import { api, type Campaign, type Draft, type Channel, type Publication } from '../api';
 import { Badge, Card, Empty, PageHeading, Status } from '../components/Layout';
 
 const PLATFORMS = ['linkedin', 'instagram', 'facebook', 'discord', 'reddit', 'website'];
@@ -77,6 +77,7 @@ export function Campaigns() {
                       {d.title && <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{d.title}</div>}
                       <div className="copy">{d.body}</div>
                       {d.complianceNotes && <div className="notes">{d.complianceNotes}</div>}
+                      {d.status === 'APPROVED' && ['instagram', 'reddit'].includes(d.platform.toLowerCase()) && <SocialReview draft={d} />}
                     </div>
                   ))}
                 </div>
@@ -156,4 +157,41 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
       </form>
     </Card>
   );
+}
+
+function SocialReview({ draft }: { draft: Draft }) {
+  const [channels, setChannels] = useState<Channel[]>([]);
+  const [channel, setChannel] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState('');
+  useEffect(() => {
+    api.get<Channel[]>('/api/v1/connectors').then(r => setChannels(r.data.filter(c =>
+      c.type.toLowerCase() === draft.platform.toLowerCase() && c.live && c.status === 'CONNECTED')))
+      .catch(() => setMessage('Could not load channels.'));
+  }, [draft.platform]);
+  async function approve() {
+    setBusy(true); setMessage('');
+    try {
+      const r = await api.post<Publication>('/api/v1/marketing/reviewed-social', {
+        campaignId: draft.campaignId, draftId: draft.id, channelId: channel, confirmed
+      });
+      setMessage('Publication record: ' + r.data.status + '. Check Calendar for delivery.');
+      setConfirmed(false);
+    } catch { setMessage('Could not schedule this draft. Check channel status and campaign.'); }
+    finally { setBusy(false); }
+  }
+  return <div className="stack" style={{ gap: '0.5rem', marginTop: '0.7rem' }}>
+    <label className="field"><span>Review and select an authorized channel</span>
+      <select className="input" value={channel} onChange={e => { setChannel(e.target.value); setConfirmed(false); }}>
+        <option value="">Choose channel</option>
+        {channels.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+      </select>
+    </label>
+    {channels.find(c => c.id === channel)?.reviewTarget && <p className="muted" style={{ overflowWrap: 'anywhere' }}>{channels.find(c => c.id === channel)?.reviewTarget}</p>}
+    <label className="check"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
+      I reviewed this draft and the channel's configured media or title, and confirm permission and community rules.</label>
+    <button className="button" disabled={!confirmed || !channel || busy || !channels.find(c => c.id === channel)?.reviewTarget} onClick={approve}>Approve and schedule</button>
+    {message && <p role="status">{message}</p>}
+  </div>;
 }

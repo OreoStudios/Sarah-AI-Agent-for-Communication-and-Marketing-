@@ -169,7 +169,10 @@ public class SarahOrchestrator implements SarahFacade {
                 actions.add(new AgentAction("ComplianceAgent", compliance.approved() ? "APPROVED" : "REJECTED",
                         "score " + compliance.score()));
 
-                if (compliance.approved()) {
+                if (compliance.approved() && (platform == Platform.INSTAGRAM || platform == Platform.REDDIT)) {
+                    summary.add("• " + platform.displayName() + ": draft ready; owner must review target, media or title and explicitly schedule it in Campaigns");
+                    actions.add(new AgentAction("SocialMediaAgent", "OWNER_REVIEW_REQUIRED", platform.displayName()));
+                } else if (compliance.approved()) {
                     Optional<UUID> channelId = connectors.findConnectedChannelId(platform); // Connected channel?
                     if (channelId.isPresent()) {
                         schedule(campaign.id(), draft.id(), channelId.get(), platform, gen.body()); // Queue it.
