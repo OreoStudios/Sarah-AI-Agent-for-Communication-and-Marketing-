@@ -1,0 +1,2 @@
+CREATE TABLE marketing_observation(publication_id UUID PRIMARY KEY REFERENCES publication(id) ON DELETE CASCADE,platform VARCHAR(32) NOT NULL,impressions BIGINT NOT NULL,clicks BIGINT NOT NULL,conversions BIGINT NOT NULL,source VARCHAR(200) NOT NULL,observed_at TIMESTAMPTZ NOT NULL);
+CREATE TABLE marketing_strategy_weight(platform VARCHAR(32) PRIMARY KEY,weight DOUBLE PRECISION NOT NULL,impressions BIGINT NOT NULL,conversions BIGINT NOT NULL,posts INT NOT NULL,explanation TEXT NOT NULL,updated_at TIMESTAMPTZ NOT NULL);
