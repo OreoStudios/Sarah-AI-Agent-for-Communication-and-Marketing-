@@ -5,6 +5,7 @@ import com.oreostudios.sarah.brand.api.BrandFacade;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -49,6 +50,11 @@ public class SeoController {
         db.update("INSERT INTO seo_snapshot(kind,subject,report) VALUES (?,?,CAST(? AS jsonb))",kind,subject,result.toString());
         return result;
     }
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<Map<String,String>> seoError(ResponseStatusException ex){
+        return ResponseEntity.status(ex.getStatusCode()).body(Map.of("detail",
+            Objects.requireNonNullElse(ex.getReason(),"SEO request failed")));
+    }
     private UUID workspaceId(){
         return UUID.fromString(db.queryForObject("SELECT current_setting('sarah.workspace_id')",String.class));
     }
@@ -72,8 +78,6 @@ public class SeoController {
         SiteCrawler site=companyCrawler();
         return jobs.start(workspace,"crawl",progress -> {
             var report=site.crawl(progress);
-            progress.accept(new SeoJobs.Progress("Saving report",report.pages(),report.pages(),
-                report.results().stream().mapToInt(p->p.issues().size()).sum()));
             return storeJob(workspace,"crawl",site.host(),report,plan(report));
         });
     }
