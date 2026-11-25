@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { MarketingWorkspace } from './MarketingWorkspace';
 import { Link } from 'react-router-dom';
 import { api, type DashboardSummary } from '../api';
 import { Badge, Card, Empty, ErrorNotice, Loading, PageHeading, Status, humanize } from '../components/Layout';
@@ -49,6 +50,8 @@ export function Dashboard() {
           <Figure n={data.upcomingPublications.length} label="Upcoming posts" />
           <Figure n={connected} label={`Channels live / ${data.channels.length}`} />
         </div>
+
+        <MarketingWorkspace />
 
         <div className="grid grid-lead">
           <Card
