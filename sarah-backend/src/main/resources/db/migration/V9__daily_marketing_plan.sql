@@ -1,0 +1,1 @@
+CREATE TABLE marketing_daily_plan(day DATE PRIMARY KEY,status VARCHAR(32) NOT NULL,campaign_id UUID REFERENCES campaign(id),platforms TEXT,drafts INT NOT NULL DEFAULT 0,scheduled INT NOT NULL DEFAULT 0,created_at TIMESTAMPTZ NOT NULL DEFAULT now());
