@@ -23,6 +23,7 @@ import java.util.*;
 public class LiveCompetitorController {
     private final LlmClient llm; private final PromptSanitizer sanitizer; private final BrandFacade brand;
     private final AuditFacade audit; private final String key; private final RestClient search;
+    @org.springframework.beans.factory.annotation.Autowired
     public LiveCompetitorController(LlmClient llm,PromptSanitizer sanitizer,BrandFacade brand,AuditFacade audit,
             @Value("${SARAH_BRAVE_SEARCH_KEY:}") String key) {
         this(llm,sanitizer,brand,audit,key,client());
