@@ -92,7 +92,16 @@ class AuthHttpTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.authenticated").value(true));
 
-        // 3. The same session can now reach the agents.
+        // 3. A verified account without a company is NOT permitted to read global data.
+        mvc.perform(get("/api/v1/campaigns").session(session)).andExpect(status().isForbidden());
+
+        // 4. Create the first company: the verified creator becomes its OWNER.
+        mvc.perform(post("/api/workspaces").session(session).with(csrf())
+                        .contentType("application/json")
+                        .content("{\"name\":\"Example Company\",\"website\":\"https://example.com\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.role").value("OWNER"));
+
         mvc.perform(get("/api/v1/campaigns").session(session)).andExpect(status().isOk());
 
         // 4. Logout invalidates the server session; a request without a valid session is denied.
