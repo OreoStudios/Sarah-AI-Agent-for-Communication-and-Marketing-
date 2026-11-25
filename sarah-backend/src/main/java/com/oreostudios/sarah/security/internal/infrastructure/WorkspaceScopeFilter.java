@@ -64,6 +64,11 @@ public final class WorkspaceScopeFilter extends OncePerRequestFilter {
             response.sendError(HttpServletResponse.SC_FORBIDDEN, "Select or create a company workspace");
             return;
         }
+        if ("VIEWER".equals(membership.role()) &&
+            !List.of("GET", "HEAD", "OPTIONS").contains(request.getMethod())) {
+            response.sendError(HttpServletResponse.SC_FORBIDDEN, "Read-only workspace membership");
+            return;
+        }
         List<SimpleGrantedAuthority> roles = new ArrayList<>();
         roles.add(new SimpleGrantedAuthority("ROLE_VIEWER"));
         if ("OWNER".equals(membership.role())) roles.add(new SimpleGrantedAuthority("ROLE_OWNER"));
