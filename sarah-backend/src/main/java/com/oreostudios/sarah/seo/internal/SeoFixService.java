@@ -115,6 +115,12 @@ public class SeoFixService {
         Audit audit=audit(auditId);
         Connection account=connection();
         Repo repo=account.repo();
+        String website=brand.active().website();
+        if (repo.owner().equalsIgnoreCase("OreoStudios") &&
+            repo.name().equalsIgnoreCase("Sarah-AI-Agent-for-Communication-and-Marketing-") &&
+            (website==null || !"sarah.oreostudios.fr".equalsIgnoreCase(URI.create(website).getHost())))
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Connect the audited website's repository, not SARAH's application repository");
         var prior=db.query("""
             SELECT pr_url,model,changes FROM seo_fix_pr
             WHERE snapshot_id=? AND repo_owner=? AND repo_name=?

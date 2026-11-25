@@ -116,7 +116,9 @@ public class SiteCrawler {
     private Page failed(URI u,int code,String issue,String redirect){
         return new Page(u.toString(),code,"","","",0,0,0,0,0,0,0,false,false,redirect,"",new ArrayList<>(List.of(issue)),List.of());
     }
-    public Report crawl(){
+    public Report crawl(){return crawl(progress -> {});}
+    Report crawl(java.util.function.Consumer<SeoJobs.Progress> progress){
+        progress.accept(new SeoJobs.Progress("Checking robots.txt",0,0,0));
         Instant started=Instant.now(),deadline=started.plusSeconds(110);List<String> notes=new ArrayList<>();
         List<Page> results=new ArrayList<>(); Map<String,Boolean> bots=new LinkedHashMap<>();
         String robots;
@@ -135,6 +137,7 @@ public class SiteCrawler {
         for(String line:robots.split("\\R")) if(line.toLowerCase(Locale.ROOT).startsWith("sitemap:")){
             URI u=normalize(line.substring(8).strip(),origin);if(u!=null)maps.add(u);
         }
+        progress.accept(new SeoJobs.Progress("Discovering sitemap pages",queued.size(),0,0));
         while(!maps.isEmpty()&&mapSeen.size()<10&&Instant.now().isBefore(deadline)){
             URI u=maps.remove();if(!mapSeen.add(u)||!allowed(robots,AGENT,u.getRawPath()))continue;
             try{
@@ -143,9 +146,11 @@ public class SiteCrawler {
                 for(var el:xml.select("sitemap > loc")){URI v=normalize(el.text(),u);if(v!=null&&maps.size()<20)maps.add(v);}
                 for(var el:xml.select("url > loc")){URI v=normalize(el.text(),u);if(v!=null&&queued.size()<5000&&queued.add(v))queue.add(v);}
             }catch(Exception e){notes.add("Sitemap read failed: "+u);}
+            progress.accept(new SeoJobs.Progress("Discovering sitemap pages",queued.size(),0,0));
         }
         Map<String,List<Page>> titles=new HashMap<>(),hashes=new HashMap<>(); Map<String,Page> byUrl=new HashMap<>();
-        boolean errors=false;
+        boolean errors=false; int issues=0;
+        progress.accept(new SeoJobs.Progress("Analyzing pages",queued.size(),0,0));
         while(!queue.isEmpty()&&results.size()<limit&&Instant.now().isBefore(deadline)){
             URI u=queue.remove();Page p;
             if(!allowed(robots,AGENT,u.getRawPath()))p=failed(u,0,"ROBOTS_BLOCKED","");
@@ -163,12 +168,15 @@ public class SiteCrawler {
                 }
             }catch(Exception e){p=failed(u,0,"FETCH_FAILED","");errors=true;}
             results.add(p);byUrl.put(p.url(),p);
+            issues+=p.issues().size();
+            progress.accept(new SeoJobs.Progress("Analyzing pages",queued.size(),results.size(),issues));
         }
         for(var group:titles.values())if(group.size()>1)group.forEach(p->p.issues().add("DUPLICATE_TITLE"));
         for(var group:hashes.values())if(group.size()>1)group.forEach(p->p.issues().add("EXACT_DUPLICATE_TEXT"));
         for(Page p:results)for(String link:p.links()){
             Page target=byUrl.get(link);if(target!=null&&target.status()>=400)p.issues().add("BROKEN_LINK: "+link);
         }
+        progress.accept(new SeoJobs.Progress("Finalizing findings",queued.size(),results.size(),results.stream().mapToInt(p->p.issues().size()).sum()));
         if(!queue.isEmpty())notes.add("Page/time limit reached; crawl is partial.");
         if(!maps.isEmpty())notes.add("Sitemap discovery limited.");
         notes.add("HTML only; no JavaScript rendering, query URLs or external link crawling. Root robot rules are not proof of indexing. Configure network egress restrictions for crawler DNS rebinding defense.");
