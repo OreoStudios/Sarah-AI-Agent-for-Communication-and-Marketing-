@@ -1,0 +1,4 @@
+CREATE TABLE marketing_subscriber(email VARCHAR(254) PRIMARY KEY,consent_evidence TEXT NOT NULL,suppressed BOOLEAN NOT NULL DEFAULT false,created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE marketing_email_campaign(id UUID PRIMARY KEY,subject VARCHAR(150) NOT NULL,body TEXT NOT NULL,status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',created_at TIMESTAMPTZ NOT NULL DEFAULT now());
+CREATE TABLE marketing_email_delivery(campaign_id UUID REFERENCES marketing_email_campaign(id),email VARCHAR(254) REFERENCES marketing_subscriber(email),status VARCHAR(32) NOT NULL,created_at TIMESTAMPTZ NOT NULL DEFAULT now(),PRIMARY KEY(campaign_id,email));
+CREATE TABLE marketing_email_quota(day DATE PRIMARY KEY,used INT NOT NULL CHECK(used>=0));
