@@ -88,6 +88,32 @@ class WorkspaceIsolationHttpTest {
     }
 
     @Test
+    void invitedViewerCanReadOnlyTheirCompanyAndCannotRunChatActions() throws Exception {
+        MockHttpSession owner = new MockHttpSession(), invited = new MockHttpSession();
+        JsonNode company = createCompany("owner@example.org", owner, "Owner Company");
+
+        String invite = json.writeValueAsString(java.util.Map.of(
+                "email", "viewer@example.org", "role", "VIEWER"));
+        mvc.perform(post("/api/workspaces/" + company.get("id").asText() + "/members")
+                        .session(owner).with(csrf()).with(user("owner@example.org").roles("USER"))
+                        .contentType("application/json").content(invite))
+                .andExpect(status().isNoContent());
+
+        mvc.perform(post("/api/workspaces/" + company.get("id").asText() + "/select")
+                        .session(invited).with(csrf()).with(user("viewer@example.org").roles("USER")))
+                .andExpect(status().isOk());
+
+        mvc.perform(get("/api/v1/campaigns").session(invited)
+                        .with(user("viewer@example.org").roles("USER")))
+                .andExpect(status().isOk());
+
+        mvc.perform(post("/api/v1/chat").session(invited).with(csrf())
+                        .with(user("viewer@example.org").roles("USER"))
+                        .contentType("application/json").content("{\\"message\\":\\"Launch marketing campaign\\"}"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     void noMembershipCannotReadMarketingData() throws Exception {
         mvc.perform(get("/api/v1/campaigns").with(user("outsider@example.org").roles("USER")))
                 .andExpect(status().isForbidden());
