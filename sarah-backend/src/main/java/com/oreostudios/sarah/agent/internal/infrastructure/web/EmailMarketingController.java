@@ -9,7 +9,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.mail.SimpleMailMessage;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -25,16 +25,17 @@ public class EmailMarketingController {
     private final JdbcTemplate db;private final AutonomyFacade autonomy;private final AuditFacade audit;
     private final LlmClient llm;private final PromptSanitizer sanitizer;private final BrandFacade brand;
     private final ObjectProvider<JavaMailSender> mail;
-    private final boolean enabled;private final String from,replyTo,postalAddress;private final int dailyLimit;
+    private final boolean enabled;private final String from,replyTo,postalAddress,publicUrl;private final int dailyLimit;
     public EmailMarketingController(JdbcTemplate db,AutonomyFacade autonomy,AuditFacade audit,LlmClient llm,
             PromptSanitizer sanitizer,BrandFacade brand,ObjectProvider<JavaMailSender> mail,
             @Value("${SARAH_EMAIL_MARKETING_ENABLED:false}") boolean enabled,
             @Value("${SARAH_MARKETING_FROM:}") String from,@Value("${SARAH_MARKETING_REPLY_TO:}") String replyTo,
             @Value("${SARAH_MARKETING_POSTAL_ADDRESS:}") String postalAddress,
-            @Value("${SARAH_MARKETING_EMAIL_DAILY_LIMIT:10}") int dailyLimit){
+            @Value("${SARAH_MARKETING_EMAIL_DAILY_LIMIT:10}") int dailyLimit,
+            @Value("${SARAH_MARKETING_PUBLIC_URL:}") String publicUrl){
         this.db=db;this.autonomy=autonomy;this.audit=audit;this.llm=llm;this.sanitizer=sanitizer;this.brand=brand;this.mail=mail;
         this.enabled=enabled;this.from=from;this.replyTo=replyTo;this.postalAddress=postalAddress;
-        this.dailyLimit=Math.max(1,Math.min(50,dailyLimit));
+        this.dailyLimit=Math.max(1,Math.min(50,dailyLimit));this.publicUrl=publicUrl;
     }
     public record Consent(String email,String evidence,boolean confirmed){}
     public record Brief(String subject,String objective,String language){}
@@ -76,8 +77,8 @@ public class EmailMarketingController {
     public List<Map<String,Object>> drafts(){return db.queryForList("SELECT id,subject,body,status,created_at FROM marketing_email_campaign ORDER BY created_at DESC LIMIT 50");}
     @PostMapping("/drafts/{id}/send")
     public Delivery send(@PathVariable UUID id,@RequestBody Approval input,Authentication auth){
-        if(!enabled||mail.getIfAvailable()==null||postalAddress.isBlank())
-            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Configure marketing SMTP, sender identity and postal address");
+        if(!enabled||mail.getIfAvailable()==null||postalAddress.isBlank()||!validPublicUrl(publicUrl))
+            throw new ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE,"Configure marketing SMTP, sender identity, postal address and HTTPS public URL");
         String sender=address(from),reply=address(replyTo);
         if(!autonomy.isEnabled())throw new ResponseStatusException(HttpStatus.CONFLICT,"Marketing paused");
         if(!input.confirmed()||input.recipients()==null||input.recipients().isEmpty()||input.recipients().size()>dailyLimit)
@@ -100,12 +101,18 @@ public class EmailMarketingController {
                 if(!autonomy.isEnabled()||!Boolean.TRUE.equals(db.queryForObject("SELECT NOT suppressed FROM marketing_subscriber WHERE email=?",Boolean.class,recipient))){
                     db.update("UPDATE marketing_email_delivery SET status='SKIPPED' WHERE campaign_id=? AND email=?",id,recipient);skipped++;continue;
                 }
-                var msg=new SimpleMailMessage();msg.setFrom(sender);msg.setReplyTo(reply);msg.setTo(recipient);
-                msg.setSubject((String)campaigns.getFirst().get("subject"));
-                msg.setText(campaigns.getFirst().get("body")+"\n\n"+brand.active().companyName()+"\n"+postalAddress+"\nTo stop receiving marketing emails, reply UNSUBSCRIBE to "+reply+".");
-                mail.getObject().send(msg);
+                UUID token=db.queryForObject("SELECT unsubscribe_token FROM marketing_subscriber WHERE email=? AND suppressed=false",UUID.class,recipient);
+                String link=publicUrl.replaceAll("/+$","")+"/api/public/marketing/unsubscribe/"+token;
+                var senderBean=mail.getObject();var msg=senderBean.createMimeMessage();
+                var helper=new MimeMessageHelper(msg,false,"UTF-8");
+                helper.setFrom(sender);helper.setReplyTo(reply);helper.setTo(recipient);
+                helper.setSubject((String)campaigns.getFirst().get("subject"));
+                helper.setText(campaigns.getFirst().get("body")+"\n\n"+brand.active().companyName()+"\n"+postalAddress+"\nUnsubscribe: "+link+"\nOr reply UNSUBSCRIBE to "+reply+".",false);
+                msg.setHeader("List-Unsubscribe","<"+link+">");
+                msg.setHeader("List-Unsubscribe-Post","List-Unsubscribe=One-Click");
+                senderBean.send(msg);
                 db.update("UPDATE marketing_email_delivery SET status='SMTP_ACCEPTED' WHERE campaign_id=? AND email=?",id,recipient);accepted++;
-            }catch(RuntimeException e){
+            }catch(Exception e){
                 db.update("UPDATE marketing_email_delivery SET status='UNCONFIRMED' WHERE campaign_id=? AND email=?",id,recipient);failed++;
             }
         }
@@ -115,6 +122,12 @@ public class EmailMarketingController {
     }
     @GetMapping("/drafts/{id}/deliveries")
     public List<Map<String,Object>> deliveries(@PathVariable UUID id){return db.queryForList("SELECT email,status,created_at FROM marketing_email_delivery WHERE campaign_id=?",id);}
+    static boolean validPublicUrl(String raw){
+        try {
+            var u=java.net.URI.create(raw);
+            return "https".equals(u.getScheme())&&u.getHost()!=null&&u.getUserInfo()==null&&u.getQuery()==null&&u.getFragment()==null&&(u.getPath().isEmpty()||"/".equals(u.getPath()));
+        } catch(Exception e){return false;}
+    }
     static String address(String raw){
         try{
             if(raw==null||raw.length()>254||raw.contains("\n")||raw.contains("\r"))throw new IllegalArgumentException();
