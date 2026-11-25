@@ -26,6 +26,9 @@ public class SessionService {
 
     private final SecurityContextRepository securityContextRepository;
 
+    @org.springframework.beans.factory.annotation.Value("${sarah.security.bootstrap-admin.email:owner@oreostudios.com}")
+    private String ownerEmail = "owner@oreostudios.com";
+
     public SessionService(SecurityContextRepository securityContextRepository) {
         this.securityContextRepository = securityContextRepository;
     }
@@ -36,7 +39,7 @@ public class SessionService {
         request.changeSessionId();          // ...then rotate its id (fixation protection).
 
         Authentication auth = new UsernamePasswordAuthenticationToken(
-                email, null, List.of(new SimpleGrantedAuthority("ROLE_" + role)));
+                email, null, List.of(new SimpleGrantedAuthority("ROLE_" + (ownerEmail.equalsIgnoreCase(email) ? "OWNER" : "VIEWER"))));
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(auth);
         SecurityContextHolder.setContext(context);

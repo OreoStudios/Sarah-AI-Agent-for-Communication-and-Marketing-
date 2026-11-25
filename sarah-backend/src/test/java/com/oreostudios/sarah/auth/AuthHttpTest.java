@@ -43,6 +43,7 @@ class AuthHttpTest {
         r.add("spring.datasource.url", postgres::getJdbcUrl);
         r.add("spring.datasource.username", postgres::getUsername);
         r.add("spring.datasource.password", postgres::getPassword);
+        r.add("sarah.security.bootstrap-admin.email", () -> "dave@example.com");
         r.add("management.health.redis.enabled", () -> "false");
         r.add("sarah.auth.email.provider", () -> "none"); // Use the capturing test adapter only.
     }
@@ -61,6 +62,12 @@ class AuthHttpTest {
 
     @Autowired MockMvc mvc;
     @Autowired CapturingEmail email;
+
+    @Test
+    void nonOwnerCannotReachPrivateWorkspace() throws Exception {
+        mvc.perform(get("/api/v1/campaigns").with(org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user("outsider@example.com").roles("VIEWER")))
+                .andExpect(status().isForbidden());
+    }
 
     @Test
     void guestCannotReachTheAgents() throws Exception {
