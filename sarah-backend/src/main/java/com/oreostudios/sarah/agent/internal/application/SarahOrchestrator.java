@@ -66,12 +66,14 @@ public class SarahOrchestrator implements SarahFacade {
     private final LlmClient llm; // LLM port.
     private final PromptSanitizer sanitizer; // Prompt-injection guard.
     private final AuditFacade audit; // Audit port.
+    private final com.oreostudios.sarah.memory.api.SemanticMemory knowledge;
 
     public SarahOrchestrator(ConversationFacade conversation, BrandFacade brand, CampaignFacade campaigns,
                              ContentAgent contentAgent, ComplianceAgent complianceAgent,
                              ConnectorFacade connectors, PublishingFacade publishing,
                              WorkflowTaskFacade tasks, AutonomyFacade autonomy,
-                             LlmClient llm, PromptSanitizer sanitizer, AuditFacade audit) {
+                             LlmClient llm, PromptSanitizer sanitizer, AuditFacade audit,
+                             com.oreostudios.sarah.memory.api.SemanticMemory knowledge) {
         this.conversation = conversation;
         this.brand = brand;
         this.campaigns = campaigns;
@@ -84,6 +86,7 @@ public class SarahOrchestrator implements SarahFacade {
         this.llm = llm;
         this.sanitizer = sanitizer;
         this.audit = audit;
+        this.knowledge = knowledge;
     }
 
     @Override
@@ -91,9 +94,30 @@ public class SarahOrchestrator implements SarahFacade {
         UUID convId = conversationId != null ? conversationId : UUID.randomUUID(); // Resolve conversation.
         conversation.append(convId, ChatRole.USER, message); // Persist the user turn.
 
-        ChatOutcome outcome = isCampaignRequest(message) // Route by intent.
-                ? planAndBuildCampaign(convId, message, actor)
-                : generalChat(convId, message);
+        ChatOutcome outcome;
+        String command = message.strip();
+        if (command.equalsIgnoreCase("/status")) {
+            outcome = new ChatOutcome(convId, "Autonomy enabled: " + autonomy.isEnabled()
+                    + "; campaigns: " + campaigns.list().size() + "; configured channels: " + connectors.listChannels().size()
+                    + "; provider: " + llm.providerName(), null, List.of(), llm.providerName());
+        } else if (command.toLowerCase(Locale.ROOT).startsWith("/ask-memory ")) {
+            if (!knowledge.isEnabled()) {
+                outcome = new ChatOutcome(convId, "Semantic knowledge is disabled.", null, List.of(), llm.providerName());
+            } else {
+                String query = command.substring("/ask-memory ".length()).strip();
+                String facts = knowledge.recall(query, 5).stream()
+                        .map(hit -> hit.kind() + ": " + hit.content())
+                        .reduce((a,b) -> a + "\n" + b).orElse("No stored facts.");
+                String answer = llm.generate(sanitizer.guardClause()
+                                + "\nAnswer from approved business knowledge when relevant; state unknowns. Do not execute actions.",
+                        sanitizer.wrapUntrusted("retrieved-knowledge", facts) + "\n" + sanitizer.wrapUntrusted("question",query));
+                outcome = new ChatOutcome(convId, answer, null, List.of(), llm.providerName());
+            }
+        } else if (isCampaignRequest(message)) {
+            outcome = planAndBuildCampaign(convId, message, actor);
+        } else {
+            outcome = generalChat(convId, message);
+        }
 
         conversation.append(convId, ChatRole.ASSISTANT, outcome.reply()); // Persist the reply.
         return outcome;
@@ -229,8 +253,7 @@ public class SarahOrchestrator implements SarahFacade {
     // --- deterministic parsing helpers -----------------------------------
 
     private boolean isCampaignRequest(String message) {
-        String lower = message.toLowerCase(Locale.ROOT);
-        return CAMPAIGN_TRIGGERS.stream().anyMatch(lower::contains);
+        return CampaignIntent.isExplicit(message);
     }
 
     private List<Platform> detectPlatforms(String message) {
