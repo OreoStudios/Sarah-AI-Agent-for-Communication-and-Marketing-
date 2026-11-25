@@ -2,6 +2,7 @@ package com.oreostudios.sarah.prospecting.internal.infrastructure.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Service;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
@@ -46,6 +47,7 @@ public class CompanyDiscoveryController {
             if (!siren.matches("[0-9]{9}") || name.isBlank()
                     || !"A".equals(item.path("etat_administratif").asText())
                     || !"O".equals(item.path("statut_diffusion").asText())
+                    || !item.path("nature_juridique").asText("").matches("[2-9][0-9]{3}")
                     || item.path("nature_juridique").asText().startsWith("1")) continue;
             results.add(new Candidate(siren, name, item.path("activite_principale").asText(""),
                     item.path("siege").path("libelle_commune").asText(""),
