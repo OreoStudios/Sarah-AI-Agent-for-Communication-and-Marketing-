@@ -23,6 +23,7 @@ const make: [string, string][] = [
 const perspective: [string, string][] = [
   ['/', 'Intelligence'],
   ['/prospects', 'Audience'],
+  ['/seo', 'SEO & GEO'],
   ['/settings', 'Channels & settings'],
 ];
 

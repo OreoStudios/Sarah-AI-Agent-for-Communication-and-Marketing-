@@ -10,6 +10,7 @@ import { Chat } from './pages/Chat';
 import { Campaigns } from './pages/Campaigns';
 import { Calendar } from './pages/Calendar';
 import { Prospects } from './pages/Prospects';
+import { Seo } from './pages/Seo';
 import { Settings } from './pages/Settings';
 import { preview } from './preview';
 
@@ -22,6 +23,7 @@ function Workspace() {
         <Route path="/campaigns" element={<Campaigns />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/prospects" element={<Prospects />} />
+        <Route path="/seo" element={<Seo />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

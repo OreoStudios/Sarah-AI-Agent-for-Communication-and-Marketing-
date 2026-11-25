@@ -18,7 +18,7 @@ public class OpenAiLlmClient implements LlmClient {
     private final RestClient client;
     private final String model;
     public OpenAiLlmClient(@Value("${OPENAI_API_KEY:}") String key,
-                           @Value("${SARAH_OPENAI_MODEL:gpt-4.1-mini}") String model) {
+                           @Value("${SARAH_OPENAI_MODEL:gpt-6.2-astra}") String model) {
         if (key.isBlank() || model.isBlank()) throw new IllegalStateException("Configure OPENAI_API_KEY and SARAH_OPENAI_MODEL");
         this.model = model;
         var factory = new JdkClientHttpRequestFactory(HttpClient.newBuilder()
@@ -29,12 +29,13 @@ public class OpenAiLlmClient implements LlmClient {
     }
     @Override public String generate(String systemPrompt, String userPrompt) {
         try {
-            var payload = Map.of("model", model, "messages", List.of(
-                    Map.of("role","system","content",systemPrompt),
-                    Map.of("role","user","content",userPrompt)), "max_completion_tokens", 4096);
-            JsonNode response = client.post().uri("/v1/chat/completions").body(payload)
-                    .retrieve().body(JsonNode.class);
-            String result = response == null ? "" : response.path("choices").path(0).path("message").path("content").asText("");
+            var payload = Map.of("model", model, "instructions", systemPrompt, "input", userPrompt, "max_output_tokens", 8192, "store", false);
+            JsonNode response = client.post().uri("/v1/responses").body(payload).retrieve().body(JsonNode.class);
+            StringBuilder output = new StringBuilder();
+            if (response != null) for (JsonNode item : response.path("output"))
+                for (JsonNode part : item.path("content"))
+                    if ("output_text".equals(part.path("type").asText())) output.append(part.path("text").asText());
+            String result = output.toString();
             if (result.isBlank()) throw new IllegalStateException("OpenAI returned no text");
             return result;
         } catch (org.springframework.web.client.RestClientException ex) {
