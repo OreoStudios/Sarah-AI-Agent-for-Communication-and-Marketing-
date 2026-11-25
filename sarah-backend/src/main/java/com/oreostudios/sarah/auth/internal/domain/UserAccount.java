@@ -29,7 +29,7 @@ public class UserAccount {
     private AccountStatus status = AccountStatus.PENDING;
 
     @Column(nullable = false)
-    private String role = "OWNER"; // Single-tenant: a verified user owns the Oreo Studios workspace.
+    private String role = "VIEWER"; // Single-tenant: a verified user owns the Oreo Studios workspace.
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();

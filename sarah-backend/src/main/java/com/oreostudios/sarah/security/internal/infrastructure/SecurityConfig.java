@@ -78,6 +78,7 @@ public class SecurityConfig {
                 // Guests may only onboard/authenticate. No access to the agents or private data.
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/autonomy/**").hasRole("OWNER")
+                .requestMatchers("/api/v1/**").hasRole("OWNER")
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().authenticated())
             .httpBasic(basic -> { }); // Backward-compatible owner/admin login.
