@@ -40,6 +40,7 @@ class WorkspaceIsolationHttpTest {
 
     @Autowired MockMvc mvc;
     @Autowired ObjectMapper json;
+    @Autowired org.springframework.jdbc.core.JdbcTemplate db;
 
     private JsonNode createCompany(String email, MockHttpSession session, String name) throws Exception {
         String body = json.writeValueAsString(java.util.Map.of("name", name, "website", "https://example.com"));
@@ -111,6 +112,46 @@ class WorkspaceIsolationHttpTest {
                         .with(user("viewer@example.org").roles("USER"))
                         .contentType("application/json").content(json.writeValueAsString(java.util.Map.of("message", "Launch marketing campaign"))))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void githubRepositoriesAreVisibleOnlyToTheOwningCompanyAndViewersCannotCreatePrs() throws Exception {
+        MockHttpSession alice = new MockHttpSession(), bob = new MockHttpSession();
+        JsonNode a = createCompany("seoalice@example.org", alice, "SEO Alice");
+        createCompany("seobob@example.org", bob, "SEO Bob");
+        db.update("""
+            INSERT INTO seo_github_connection(workspace_id,repo_owner,repo_name,encrypted_token)
+            VALUES (?,?,?,?)
+            """, java.util.UUID.fromString(a.get("id").asText()), "alice", "website", "encrypted-test-placeholder");
+
+        mvc.perform(get("/api/v1/seo/fixes/repository").session(alice)
+                    .with(user("seoalice@example.org").roles("USER")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.connected").value(true))
+            .andExpect(jsonPath("$.url").value("https://github.com/alice/website"));
+        mvc.perform(get("/api/v1/seo/fixes/repository").session(bob)
+                    .with(user("seobob@example.org").roles("USER")))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.connected").value(false));
+
+        mvc.perform(post("/api/v1/seo/fixes/pull-request").session(alice).with(csrf())
+                    .with(user("seoalice@example.org").roles("USER"))
+                    .contentType("application/json")
+                    .content("{\"auditId\":1,\"confirmed\":false}"))
+            .andExpect(status().isBadRequest());
+
+        String invite=json.writeValueAsString(java.util.Map.of("email","seoviewer@example.org","role","VIEWER"));
+        mvc.perform(post("/api/workspaces/"+a.get("id").asText()+"/members").session(alice).with(csrf())
+                    .with(user("seoalice@example.org").roles("USER"))
+                    .contentType("application/json").content(invite))
+            .andExpect(status().isNoContent());
+        MockHttpSession viewer=new MockHttpSession();
+        mvc.perform(post("/api/workspaces/"+a.get("id").asText()+"/select").session(viewer).with(csrf())
+                    .with(user("seoviewer@example.org").roles("USER")))
+            .andExpect(status().isOk());
+        mvc.perform(get("/api/v1/seo/fixes/repository").session(viewer)
+                    .with(user("seoviewer@example.org").roles("USER")))
+            .andExpect(status().isForbidden());
     }
 
     @Test
