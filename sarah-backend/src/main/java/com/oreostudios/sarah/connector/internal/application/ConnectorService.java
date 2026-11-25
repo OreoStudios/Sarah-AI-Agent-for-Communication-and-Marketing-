@@ -73,6 +73,11 @@ public class ConnectorService implements ConnectorFacade {
     @Transactional
     public ChannelView setStatus(UUID id, ConnectorStatus status, String actor) {
         ConnectorAccount acct = require(id); // Load.
+        if (status == ConnectorStatus.CONNECTED) {
+            SocialConnector connector = registry.forPlatform(acct.getType()).orElseThrow();
+            if (!connector.live()) throw new com.oreostudios.sarah.shared.PolicyViolationException("Real connector is disabled");
+            connector.validateCredentials(context(acct));
+        }
         acct.updateStatus(status); // Apply.
         audit.record(actor, "CONNECTOR_STATUS", "connector", id.toString(), "status=" + status);
         return toView(acct, registry.forPlatform(acct.getType()).orElse(null));
@@ -109,7 +114,7 @@ public class ConnectorService implements ConnectorFacade {
         try {
             connector.validateCredentials(ctx); // Re-validate before use.
         } catch (RuntimeException e) {
-            return PublishResult.permanentFailure("Credential validation failed: " + e.getMessage());
+            return PublishResult.permanentFailure("Credential validation failed; check channel settings");
         }
         return connector.publish(ctx, request); // Dispatch.
     }

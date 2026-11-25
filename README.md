@@ -8,7 +8,7 @@ runs it through deterministic compliance checks, and schedules compliant publica
 authorized channels — with a kill switch, rate limits, idempotency, retries, and a full
 audit trail.
 
-> This is a working MVP (Phase 1 complete + the publishing/Discord slice of Phase 2).
+> This is an evolving marketing platform with opt-in publishing, SEO, B2B discovery, analytics and semantic memory integrations.
 > It is built to automate **legitimate** marketing workflows, respecting platform policies,
 > privacy, and owner-defined limits. It does not spam, scrape restricted data, or evade
 > platform restrictions.
@@ -41,7 +41,7 @@ Sarah AI Agent/
 │       ├── agent/              # orchestrator + content + compliance agents
 │       ├── campaign/           # campaigns, drafts, workflow state machine
 │       ├── publishing/         # idempotent scheduling, retry/backoff, limits
-│       ├── connector/          # capability-based connectors (Discord=live, others=mock)
+│       ├── connector/          # capability-based connectors (Discord and opt-in real adapters)
 │       ├── autonomy/           # kill switch + limits (persisted)
 │       ├── scheduling/         # background publisher + workflow tasks
 │       ├── memory/             # conversation + semantic memory (pgvector)
@@ -77,7 +77,7 @@ docker compose up --build
 - Log in with the seeded owner (`SARAH_ADMIN_EMAIL` / `SARAH_ADMIN_PASSWORD`, default
   `owner@oreostudios.com` / `change-me-now`). **Change the password after first login.**
 
-The platform runs fully **offline** by default (`SARAH_LLM_PROVIDER=mock`): no API key
+The platform runs in mock LLM mode by default (`SARAH_LLM_PROVIDER=mock`): no API key
 required. Set `SARAH_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=…` for live generation
 with Claude.
 
@@ -119,9 +119,15 @@ configurable via `SARAH_OUTBOUND_HOSTS`).
 
 | Channel | Status | Notes |
 |---------|--------|-------|
-| **Discord** | ✅ Live | Official webhook API. Fully publishes. |
-| LinkedIn, Facebook, Instagram, Reddit, Website | ⚠ Mock adapter | Clearly labelled; never fakes a real external post. Each reports its exact setup requirement (OAuth app, scopes, platform approval). Replace `MockConnector` with a real implementation once credentials/approval exist. |
-| Google Search Console, B2B data sources | Not yet wired | Connector contract (`SocialConnector`) + capability model are in place for extension. |
+| Discord | Live adapter | Authorized webhook. |
+| LinkedIn, Facebook | Opt-in real adapters | Official text-post APIs; approved tokens and target configuration. |
+| Instagram | Opt-in real adapter | Professional account, approved token and public JPEG URL; owner-reviewed single-image posts. |
+| Reddit | Opt-in real adapter | Approved Reddit API access, user token and authorized subreddit; owner-reviewed text posts with automation disclosure. |
+| Website | Opt-in real adapter | WordPress REST API; application password and authorized site. |
+| Google Search Console | Opt-in real read-only integration | Authorized property and OAuth refresh token. |
+| B2B data sources | Real read-only discovery endpoint | Public French company registry; no automatic outreach. |
+
+All opt-in connectors remain mock/disabled until enabled and configured. Live credentials and provider approval must be tested before production use. See [reviewed social publishing](docs/REVIEWED-SOCIAL-PUBLISHING.md) for setup and limits.
 
 Missing credentials/approval are surfaced as a **setup requirement** (`NEEDS_SETUP`), never a
 fake success — see `ConnectorService` and the integration test `unsupportedChannelIsReportedNotFaked`.
