@@ -1,0 +1,2 @@
+# Live competitor research
+Set SARAH_BRAVE_SEARCH_KEY and a live LLM. POST /api/v1/marketing/competitors with market, competitors (1–5 names), language. Returns numbered real search results, timestamp, evidence-based analysis and caveats. Uses Brave Search official API; use a subscription permitting your intended processing and retention. No arbitrary URL crawling, competitor traffic estimates or invented metrics. Search output is treated as untrusted data. Review facts and citations before acting.

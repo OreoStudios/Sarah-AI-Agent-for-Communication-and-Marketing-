@@ -27,6 +27,9 @@ public class Prospect {
     @Column(name = "business_name", nullable = false)
     private String businessName; // Business name.
 
+    @Column(name = "registry_siren", unique = true, length = 9)
+    private String registrySiren;
+
     private String website; // Website URL (nullable).
     private String sector; // Sector (nullable).
     private String location; // Location (nullable).
@@ -87,6 +90,11 @@ public class Prospect {
         this.updatedAt = Instant.now();
     }
 
+    public void attachRegistrySiren(String siren) {
+        if (registrySiren != null || siren == null || !siren.matches("[0-9]{9}")) throw new IllegalArgumentException("Invalid registry identity");
+        this.registrySiren = siren;
+    }
+    public String getRegistrySiren() { return registrySiren; }
     public UUID getId() { return id; }
     public String getBusinessName() { return businessName; }
     public String getWebsite() { return website; }
