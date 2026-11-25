@@ -109,7 +109,7 @@ class WorkspaceIsolationHttpTest {
 
         mvc.perform(post("/api/v1/chat").session(invited).with(csrf())
                         .with(user("viewer@example.org").roles("USER"))
-                        .contentType("application/json").content("{\\"message\\":\\"Launch marketing campaign\\"}"))
+                        .contentType("application/json").content(json.writeValueAsString(java.util.Map.of("message", "Launch marketing campaign")))
                 .andExpect(status().isForbidden());
     }
 
