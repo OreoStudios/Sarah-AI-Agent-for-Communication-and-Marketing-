@@ -39,7 +39,7 @@ public class SarahProperties {
         /** Anthropic Claude settings. */
         public static class Anthropic {
             private String apiKey = ""; // ANTHROPIC_API_KEY.
-            private String model = "claude-opus-4-8"; // Default model id.
+            private String model = "claude-opus-5-5"; // Default model id.
             private int maxTokens = 2048; // Max output tokens.
             public String getApiKey() { return apiKey; }
             public void setApiKey(String apiKey) { this.apiKey = apiKey; }
