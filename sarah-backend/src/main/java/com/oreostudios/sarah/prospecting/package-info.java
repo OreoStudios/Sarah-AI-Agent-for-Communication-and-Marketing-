@@ -4,6 +4,6 @@
  */
 @org.springframework.modulith.ApplicationModule( // Bounded module.
         displayName = "Prospecting",
-        allowedDependencies = {"shared", "audit :: api"} // Shared building blocks + audit.
+        allowedDependencies = {"shared", "audit :: api", "autonomy :: api"} // Shared building blocks + audit.
 )
 package com.oreostudios.sarah.prospecting; // Root package of the prospecting module.

@@ -8,6 +8,7 @@ import java.util.UUID; // Primary-key type.
 
 /** Spring Data repository for {@link Prospect}. */
 public interface JpaProspectRepository extends JpaRepository<Prospect, UUID> {
+    java.util.Optional<Prospect> findByRegistrySiren(String siren);
     /** @return prospects ordered by descending lead score */
     List<Prospect> findAllByOrderByLeadScoreDesc();
 }

@@ -46,6 +46,7 @@ public class CompanyDiscoveryController {
             if (!siren.matches("[0-9]{9}") || name.isBlank()
                     || !"A".equals(item.path("etat_administratif").asText())
                     || !"O".equals(item.path("statut_diffusion").asText())
+                    || !item.path("nature_juridique").asText("").matches("[2-9][0-9]{3}")
                     || item.path("nature_juridique").asText().startsWith("1")) continue;
             results.add(new Candidate(siren, name, item.path("activite_principale").asText(""),
                     item.path("siege").path("libelle_commune").asText(""),
