@@ -95,7 +95,7 @@ export function Layout({ children }: { children: ReactNode }) {
                 </select>
               </label>
             )}
-            {!preview && <NavLink to="/workspaces/new" className="nav-link" style={{ marginBottom: '0.6rem' }}>+ Add a company</NavLink>
+            {!preview && <NavLink to="/workspaces/new" className="nav-link" style={{ marginBottom: '0.6rem' }}>+ Add a company</NavLink>}
             <div className="account" title={me?.email}>{me?.email}</div>
             <div className="rail-controls">
               <button onClick={toggle} aria-label={`Switch to ${dark ? 'light' : 'dark'} theme`}>

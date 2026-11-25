@@ -34,7 +34,8 @@ public class WorkspaceController {
             selected = workspaces.getFirst().id();
             request.getSession(true).setAttribute(SESSION_KEY, selected);
         }
-        if (selected != null && workspaces.stream().noneMatch(w -> w.id().equals(selected))) {
+        final UUID selectedId = selected;
+        if (selectedId != null && workspaces.stream().noneMatch(w -> w.id().equals(selectedId))) {
             selected = null;
             HttpSession session = request.getSession(false);
             if (session != null) session.removeAttribute(SESSION_KEY);
