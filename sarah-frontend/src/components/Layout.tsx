@@ -25,6 +25,7 @@ const perspective: [string, string][] = [
   ['/prospects', 'Audience'],
   ['/seo', 'SEO & GEO'],
   ['/settings', 'Channels & settings'],
+  ['/team', 'Team'],
 ];
 
 export function Layout({ children }: { children: ReactNode }) {

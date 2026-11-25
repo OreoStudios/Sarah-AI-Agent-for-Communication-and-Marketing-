@@ -13,6 +13,7 @@ import { Prospects } from './pages/Prospects';
 import { Seo } from './pages/Seo';
 import { Settings } from './pages/Settings';
 import { WorkspaceOnboarding } from './pages/WorkspaceOnboarding';
+import { Team } from './pages/Team';
 import { preview } from './preview';
 
 function Workspace() {
@@ -26,6 +27,7 @@ function Workspace() {
         <Route path="/prospects" element={<Prospects />} />
         <Route path="/seo" element={<Seo />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/team" element={<Team />} />
         <Route path="/workspaces/new" element={<WorkspaceOnboarding />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
