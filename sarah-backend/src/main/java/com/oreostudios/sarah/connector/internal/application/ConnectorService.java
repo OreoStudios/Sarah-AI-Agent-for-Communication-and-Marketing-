@@ -137,7 +137,23 @@ public class ConnectorService implements ConnectorFacade {
         Set<Capability> caps = connector != null ? connector.capabilities() : Set.of();
         String hint = live ? null
                 : "Real publishing requires platform credentials/app approval for " + a.getType().displayName();
-        return new ChannelView(a.getId(), a.getType(), a.getName(), a.getStatus(), live, caps, hint);
+        return new ChannelView(a.getId(), a.getType(), a.getName(), a.getStatus(), live, caps, hint, reviewTarget(a));
+    }
+
+    private String reviewTarget(ConnectorAccount account) {
+        try {
+            var config = new com.fasterxml.jackson.databind.ObjectMapper().readTree(account.getConfig());
+            if (account.getType() == Platform.INSTAGRAM) {
+                String url = config.path("imageUrl").asText("");
+                java.net.URI uri = java.net.URI.create(url);
+                if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getUserInfo() != null || uri.getQuery() != null || uri.getFragment() != null)
+                    return null;
+                return "Account " + config.path("accountId").asText("") + " · image: " + url;
+            }
+            if (account.getType() == Platform.REDDIT)
+                return "r/" + config.path("subreddit").asText("") + " · title: " + config.path("title").asText("");
+        } catch (Exception ignored) { }
+        return null;
     }
 
     private ConnectorAccount require(UUID id) {

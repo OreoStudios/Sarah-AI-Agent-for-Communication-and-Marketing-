@@ -188,9 +188,10 @@ function SocialReview({ draft }: { draft: Draft }) {
         {channels.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
       </select>
     </label>
+    {channels.find(c => c.id === channel)?.reviewTarget && <p className="muted" style={{ overflowWrap: 'anywhere' }}>{channels.find(c => c.id === channel)?.reviewTarget}</p>}
     <label className="check"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
       I reviewed this draft and the channel's configured media or title, and confirm permission and community rules.</label>
-    <button className="button" disabled={!confirmed || !channel || busy} onClick={approve}>Approve and schedule</button>
+    <button className="button" disabled={!confirmed || !channel || busy || !channels.find(c => c.id === channel)?.reviewTarget} onClick={approve}>Approve and schedule</button>
     {message && <p role="status">{message}</p>}
   </div>;
 }

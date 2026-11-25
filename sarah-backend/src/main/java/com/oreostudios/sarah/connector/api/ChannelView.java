@@ -17,5 +17,8 @@ import java.util.UUID; // Identifier.
  * @param setupHint    setup requirement for non-live connectors, or null
  */
 public record ChannelView(UUID id, Platform type, String name, ConnectorStatus status,
-                          boolean live, Set<Capability> capabilities, String setupHint) {
+                          boolean live, Set<Capability> capabilities, String setupHint, String reviewTarget) {
+    public ChannelView(UUID id, Platform type, String name, ConnectorStatus status, boolean live, Set<Capability> capabilities, String setupHint) {
+        this(id,type,name,status,live,capabilities,setupHint,null);
+    }
 }

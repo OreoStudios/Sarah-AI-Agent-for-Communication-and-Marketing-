@@ -56,7 +56,7 @@ export interface Publication {
 
 export interface Channel {
   id: string; type: string; name: string; status: string;
-  live: boolean; capabilities: string[]; setupHint: string | null;
+  live: boolean; capabilities: string[]; setupHint: string | null; reviewTarget?: string | null;
 }
 
 export interface Autonomy {
