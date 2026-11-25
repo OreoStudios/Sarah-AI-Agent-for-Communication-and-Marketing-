@@ -26,9 +26,6 @@ public class SessionService {
 
     private final SecurityContextRepository securityContextRepository;
 
-    @org.springframework.beans.factory.annotation.Value("${sarah.security.bootstrap-admin.email:owner@oreostudios.com}")
-    private String ownerEmail = "owner@oreostudios.com";
-
     public SessionService(SecurityContextRepository securityContextRepository) {
         this.securityContextRepository = securityContextRepository;
     }
@@ -38,8 +35,10 @@ public class SessionService {
         request.getSession(true);          // Ensure a session exists...
         request.changeSessionId();          // ...then rotate its id (fixation protection).
 
+        // Platform ownership is NOT a workspace role. Company permissions are loaded
+        // from workspace_membership on every /api/v1 request by WorkspaceScopeFilter.
         Authentication auth = new UsernamePasswordAuthenticationToken(
-                email, null, List.of(new SimpleGrantedAuthority("ROLE_" + (ownerEmail.equalsIgnoreCase(email) ? "OWNER" : "VIEWER"))));
+                email, null, List.of(new SimpleGrantedAuthority("ROLE_USER")));
         SecurityContext context = SecurityContextHolder.createEmptyContext();
         context.setAuthentication(auth);
         SecurityContextHolder.setContext(context);

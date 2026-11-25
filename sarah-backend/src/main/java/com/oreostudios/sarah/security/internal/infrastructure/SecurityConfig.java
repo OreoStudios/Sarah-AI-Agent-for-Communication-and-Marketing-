@@ -1,6 +1,10 @@
 package com.oreostudios.sarah.security.internal.infrastructure; // Infrastructure layer of the security module.
 
 import com.oreostudios.sarah.config.SarahProperties;
+import com.oreostudios.sarah.security.internal.application.WorkspaceService;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,7 +64,9 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http, SecurityContextRepository contextRepository) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, SecurityContextRepository contextRepository,
+                                           WorkspaceService workspaceService, JdbcTemplate jdbc,
+                                           PlatformTransactionManager transactions) throws Exception {
         CsrfTokenRequestAttributeHandler csrfHandler = new CsrfTokenRequestAttributeHandler();
 
         http
@@ -70,6 +76,7 @@ public class SecurityConfig {
                 .csrfTokenRequestHandler(csrfHandler)
                 .ignoringRequestMatchers(new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/api/public/marketing/unsubscribe/*", "POST")))
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
+            .addFilterAfter(new WorkspaceScopeFilter(workspaceService, jdbc, transactions), AuthorizationFilter.class)
             .securityContext(ctx -> ctx.securityContextRepository(contextRepository))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(auth -> auth
@@ -80,8 +87,8 @@ public class SecurityConfig {
                 .requestMatchers("/api/auth/**").permitAll()
                 .requestMatchers(HttpMethod.GET, "/api/public/marketing/unsubscribe/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/public/marketing/unsubscribe/*").permitAll()
-                .requestMatchers(HttpMethod.POST, "/api/v1/autonomy/**").hasRole("OWNER")
-                .requestMatchers("/api/v1/**").hasRole("OWNER")
+                .requestMatchers("/api/workspaces/**").authenticated()
+                .requestMatchers("/api/v1/**").authenticated()
                 .requestMatchers("/api/**").authenticated()
                 .anyRequest().authenticated())
             .httpBasic(basic -> { }); // Backward-compatible owner/admin login.
