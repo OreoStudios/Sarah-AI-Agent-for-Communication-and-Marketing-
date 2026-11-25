@@ -54,9 +54,26 @@ public class SearchConsoleController {
     }
     public record Row(String key,double clicks,double impressions,double ctr,double position){}
     public record Report(String property,LocalDate start,LocalDate end,String dimension,List<Row> rows,String note){}
+    public record InspectionRequest(String url){}
+    @PostMapping("/inspect")
+    public JsonNode inspect(@RequestBody InspectionRequest req){
+        try{
+            URI url=URI.create(req.url());URI scope=property.startsWith("sc-domain:")?URI.create("https://"+property.substring(10)):URI.create(property);
+            if(!"https".equals(url.getScheme())||url.getUserInfo()!=null||url.getHost()==null||scope.getHost()==null||
+              !(url.getHost().equalsIgnoreCase(scope.getHost())||(property.startsWith("sc-domain:")&&url.getHost().toLowerCase(Locale.ROOT).endsWith("."+scope.getHost().toLowerCase(Locale.ROOT))))||
+              (!property.startsWith("sc-domain:")&&!url.toString().startsWith(property))||url.getFragment()!=null||url.getRawQuery()!=null)
+                throw new IllegalArgumentException();
+            JsonNode response=client.post().uri("https://searchconsole.googleapis.com/v1/urlInspection/index:inspect")
+              .headers(h->h.setBearerAuth(accessToken())).body(Map.of("inspectionUrl",url.toString(),"siteUrl",property,"languageCode","fr"))
+              .retrieve().body(JsonNode.class);
+            if(response==null||!response.has("inspectionResult"))throw new IllegalStateException();
+            return response;
+        }catch(IllegalArgumentException ex){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid URL or property");}
+        catch(RuntimeException ex){throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,"URL inspection failed; check property, credentials and quota");}
+    }
     @GetMapping
-    public Report query(@RequestParam(defaultValue="28") int days,@RequestParam(defaultValue="query") String dimension){
-        if(days<1||days>90||!Set.of("query","page","country","device").contains(dimension))
+    public Report query(@RequestParam(defaultValue="28") int days,@RequestParam(defaultValue="query") String dimension,@RequestParam(defaultValue="0") int startRow,@RequestParam(defaultValue="100") int rowLimit){
+        if(startRow<0||startRow>50000||rowLimit<1||rowLimit>25000||days<1||days>90||!Set.of("query","page","country","device").contains(dimension))
             throw new IllegalArgumentException("Invalid reporting window or dimension");
         LocalDate end=LocalDate.now(ZoneId.of("America/Los_Angeles")).minusDays(3),start=end.minusDays(days-1);
         try{
@@ -64,14 +81,14 @@ public class SearchConsoleController {
                     UriUtils.encodePathSegment(property,StandardCharsets.UTF_8)+"/searchAnalytics/query");
             JsonNode data=client.post().uri(endpoint).headers(h->h.setBearerAuth(accessToken()))
                     .body(Map.of("startDate",start.toString(),"endDate",end.toString(),
-                            "dimensions",List.of(dimension),"rowLimit",100,"type","web","dataState","final"))
+                            "dimensions",List.of(dimension),"rowLimit",rowLimit,"startRow",startRow,"type","web","dataState","final"))
                     .retrieve().body(JsonNode.class);
             if(data==null) throw new IllegalStateException("No Search Console response");
             List<Row> rows=new ArrayList<>();
             for(JsonNode item:data.path("rows")) rows.add(new Row(item.path("keys").path(0).asText(),
                     item.path("clicks").asDouble(),item.path("impressions").asDouble(),
                     item.path("ctr").asDouble(),item.path("position").asDouble()));
-            return new Report(property,start,end,dimension,List.copyOf(rows),"Top 100 final rows; Search Console may omit some queries");
+            return new Report(property,start,end,dimension,List.copyOf(rows),"Paginated final rows; Search Console may omit some queries. Offset="+startRow+"; requested limit="+rowLimit);
         }catch(RuntimeException e){
             throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,"Search Console request failed; check OAuth access and property");
         }

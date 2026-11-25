@@ -34,7 +34,7 @@ public class SiteCrawler {
                u.getUserInfo()!=null || u.getPort()!=-1 || u.getRawQuery()!=null) return null;
             String path=u.getRawPath();
             if(path==null || path.isEmpty()) path="/";
-            String decoded=u.getPath().toLowerCase(Locale.ROOT);
+            String decoded=u.getPath().toLowerCase(Locale.ROOT);if(decoded.contains("\\")||decoded.contains("\u0000")||decoded.contains("/../")||decoded.endsWith("/.."))return null;
             if(decoded.matches(".*(?:^|/)(admin|api|logout|login|signin|signout|checkout|cart|account|auth|delete|unsubscribe)(?:/|$).*")) return null;
             return URI.create(origin+path);
         } catch(RuntimeException ex){return null;}
@@ -170,7 +170,8 @@ public class SiteCrawler {
             Page target=byUrl.get(link);if(target!=null&&target.status()>=400)p.issues().add("BROKEN_LINK: "+link);
         }
         if(!queue.isEmpty())notes.add("Page/time limit reached; crawl is partial.");
+        if(!maps.isEmpty())notes.add("Sitemap discovery limited.");
         notes.add("HTML only; no JavaScript rendering, query URLs or external link crawling. Root robot rules are not proof of indexing. Configure network egress restrictions for crawler DNS rebinding defense.");
-        return new Report(origin.toString(),started,results.size(),results,bots,notes,queue.isEmpty()&&maps.isEmpty()&&!errors&&queued.size()<5000);
+        return new Report(origin.toString(),started,results.size(),results,bots,notes,queue.isEmpty()&&maps.isEmpty()&&!errors&&queued.size()<5000&&notes.stream().noneMatch(n->n.startsWith("Sitemap")));
     }
 }

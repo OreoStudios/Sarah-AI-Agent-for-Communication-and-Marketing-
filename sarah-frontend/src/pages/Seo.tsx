@@ -19,8 +19,9 @@ export function Seo(){
   async function refresh(){if(!preview){const r=await api.get<History[]>('/api/v1/seo/history');setHistory(r.data);}}
   useEffect(()=>{void refresh().catch(()=>setError('Unable to load SEO history. Owner access required.'));},[]);
   async function run(kind:string){
+    if(kind==='indexnow'&&!window.confirm('Confirm this URL was added, updated or deleted and should be submitted to IndexNow?'))return;
     setBusy(true);setError(null);
-    try {const r=await api.post<Report>('/api/v1/seo/'+kind,{target,url,keyword,query,provider,strategy},{timeout:130000});setReport(r.data);await refresh();}
+    try {const r=kind==='inspect'?await api.post<Report>('/api/v1/dashboard/search-console/inspect',{url}):await api.post<Report>('/api/v1/seo/'+kind,{target,url,keyword,query,provider,strategy,confirmSubmission:kind==='indexnow'},{timeout:130000});setReport(r.data);await refresh();}
     catch{setError('Report unavailable. Verify credentials, provider quota and owner access.');}
     finally{setBusy(false);}
   }
@@ -30,9 +31,10 @@ export function Seo(){
     <Card title="Website audit"><p>Discover same-origin HTML pages from links and sitemaps. Robots rules and crawl limits apply.</p>
       <button className="button" disabled={busy||preview} onClick={()=>void run('crawl')}>Run website audit</button>
       <p><label>Page URL <input value={url} onChange={e=>setUrl(e.target.value)}/></label> <select value={strategy} onChange={e=>setStrategy(e.target.value)}><option>mobile</option><option>desktop</option></select> <button className="button quiet" disabled={busy||preview} onClick={()=>void run('speed')}>PageSpeed</button></p>
+      <button className="button quiet" disabled={busy||preview} onClick={()=>void run('inspect')}>Google index inspection</button> <button className="button quiet" disabled={busy||preview} onClick={()=>void run('bing')}>Bing traffic</button> <button className="button quiet" disabled={busy||preview} onClick={()=>void run('indexnow')}>Submit changed URL (IndexNow)</button>
     </Card>
     <Card title="Backlinks & keywords"><p><label>Domain <input value={target} onChange={e=>setTarget(e.target.value)}/></label></p>
-      {['summary','backlinks','ranked'].map(k=><button key={k} className="button quiet" disabled={busy||preview} onClick={()=>void run(k)}>{k}</button>)}
+      {['summary','backlinks','referring-domains','lost-links','backlink-trend','ranked'].map(k=><button key={k} className="button quiet" disabled={busy||preview} onClick={()=>void run(k)}>{k}</button>)}
       <p><label>Keyword <input value={keyword} onChange={e=>setKeyword(e.target.value)}/></label> <button className="button quiet" disabled={busy||preview} onClick={()=>void run('keywords')}>Keyword suggestions</button></p>
     </Card>
     <Card title="AI visibility"><p>Neutral prompts, native web search and returned citations. API results are samples, not consumer chatbot rankings.</p>

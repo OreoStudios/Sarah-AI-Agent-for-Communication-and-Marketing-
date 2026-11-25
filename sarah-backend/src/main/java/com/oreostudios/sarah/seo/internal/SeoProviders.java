@@ -29,6 +29,26 @@ public class SeoProviders {
         return n.path("tasks").path(0).path("result");
     }
     JsonNode backlinks(String target){return data("backlinks/backlinks/live",Map.of("target",target,"limit",100,"mode","as_is"));}
+    JsonNode backlinkTrend(String target){
+        var today=java.time.LocalDate.now(java.time.ZoneOffset.UTC);
+        return data("backlinks/timeseries_new_lost_summary/live",Map.of("target",target,"date_from",today.minusDays(30).toString(),"date_to",today.toString(),"group_range","day"));
+    }
+    JsonNode referringDomains(String target){return data("backlinks/referring_domains/live",Map.of("target",target,"limit",100));}
+    JsonNode lostLinks(String target){return data("backlinks/backlinks/live",Map.of("target",target,"limit",100,"mode","as_is","backlinks_status_type","lost"));}
+    JsonNode bing(String origin){
+        JsonNode n=client.get().uri("https://ssl.bing.com/webmaster/api.svc/json/GetRankAndTrafficStats?siteUrl={site}&apikey={key}",origin,required("SARAH_BING_WEBMASTER_KEY"))
+          .retrieve().body(JsonNode.class);
+        if(n==null||n.has("ErrorCode"))throw new IllegalStateException("Bing returned no usable traffic report");
+        return n;
+    }
+    JsonNode indexNow(String host,String url){
+        String key=required("SARAH_INDEXNOW_KEY");
+        if(!key.matches("[A-Za-z0-9-]{8,128}"))throw new IllegalStateException("Invalid IndexNow key");
+        var response=client.post().uri("https://api.indexnow.org/indexnow")
+          .body(Map.of("host",host,"key",key,"keyLocation","https://"+host+"/"+key+".txt","urlList",List.of(url)))
+          .retrieve().toBodilessEntity();
+        return new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(Map.of("url",url,"httpStatus",response.getStatusCode().value(),"note","Submission accepted for processing; indexing is not guaranteed."));
+    }
     JsonNode summary(String target){return data("backlinks/summary/live",Map.of("target",target));}
     JsonNode keywords(String keyword){return data("dataforseo_labs/google/keyword_suggestions/live",Map.of("keyword",keyword,"location_name","France","language_name","French","limit",100));}
     JsonNode ranked(String target){return data("dataforseo_labs/google/ranked_keywords/live",Map.of("target",target,"location_name","France","language_name","French","limit",100));}
@@ -70,7 +90,7 @@ public class SeoProviders {
             }
             default -> throw new IllegalArgumentException("Unknown provider");
         }
-        if(n==null)throw new IllegalStateException("Empty provider response");
+        if(n==null||n.path("status").asText("").matches("failed|incomplete|cancelled|requires_action")||"pause_turn".equals(n.path("stop_reason").asText()))throw new IllegalStateException("Incomplete provider response");
         List<String> texts=new ArrayList<>();Set<String> urls=new LinkedHashSet<>();
         collect(n,texts,urls);
         String answer=String.join("\n",texts);
