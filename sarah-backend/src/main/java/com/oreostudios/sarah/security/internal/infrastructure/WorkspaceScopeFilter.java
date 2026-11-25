@@ -81,6 +81,12 @@ public final class WorkspaceScopeFilter extends OncePerRequestFilter {
                     String.class, id.toString());
                 try {
                     chain.doFilter(request, response);
+                    // A handled 404/403 may leave a participating JPA transaction marked
+                    // rollback-only. Explicitly roll back this request instead of throwing
+                    // UnexpectedRollbackException after the error response was generated.
+                    if (response.getStatus() >= 400 || status.isRollbackOnly()) {
+                        status.setRollbackOnly();
+                    }
                 } catch (ServletException | IOException ex) {
                     throw new FilterFailure(ex);
                 }
