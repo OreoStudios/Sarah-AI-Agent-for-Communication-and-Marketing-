@@ -170,7 +170,7 @@ Endpoints: `GET /api/auth/session`, `POST /api/auth/chat`, `/request-code`, `/ve
 cd sarah-backend && mvn test
 ```
 
-Current result: **37 run, 0 failures, 0 errors, 6 skipped.**
+See GitHub Actions for the current test result.
 
 - Unit/slice tests always run: compliance rules, campaign state machine, token encryption,
   SSRF guard, the real Discord HTTP publish path (against an embedded server), and
@@ -203,6 +203,16 @@ Current result: **37 run, 0 failures, 0 errors, 6 skipped.**
 - **Audit** — every meaningful action is written to `audit_log`.
 
 ---
+
+## Advanced marketing workflows
+
+The owner can configure these optional workflows using Docker Compose variables in .env.example.
+- [Live competitor research](docs/LIVE-COMPETITOR-RESEARCH.md)
+- [Automatic prospect discovery](docs/AUTOMATED-PROSPECTING.md)
+- [AI creative generation](docs/AI-CREATIVES.md)
+- [Permission-based email marketing](docs/EMAIL-MARKETING.md)
+- [Performance optimization](docs/PERFORMANCE-OPTIMIZATION.md)
+- [Daily marketing planning](docs/DAILY-MARKETING.md)
 
 ## Required credentials / approvals to go further
 
