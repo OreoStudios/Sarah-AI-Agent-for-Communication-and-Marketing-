@@ -64,8 +64,11 @@ public class SeoProviders {
             result.put(key,audits.path(key));
         return new com.fasterxml.jackson.databind.ObjectMapper().valueToTree(result);
     }
-    record Geo(String provider,String model,String query,String answer,boolean brandMention,List<String> citationUrls,boolean ownDomainCited,String status){}
-    Geo geo(String provider,String query,String host){
+    record Recommendation(String priority,String title,String explanation,boolean fixableInRepository){}
+    record Geo(String provider,String model,String query,String answer,boolean brandMention,List<String> citationUrls,
+               boolean ownDomainCited,String status,List<Recommendation> recommendedActions,String measurementNote){}
+    Geo geo(String provider,String query,String host){return geo(provider,query,host,"Oreo Studios");}
+    Geo geo(String provider,String query,String host,String companyName){
         String model;JsonNode n;String prompt="Search the web, then answer this neutral user's question in French. Give concrete recommendations and cite sources. Question: "+query;
         switch(provider){
             case "openai" -> {
@@ -96,7 +99,25 @@ public class SeoProviders {
         String answer=String.join("\n",texts);
         if(answer.isBlank())throw new IllegalStateException("No answer returned");
         boolean own=urls.stream().anyMatch(u->{try{String h=java.net.URI.create(u).getHost();return h!=null&&(h.equalsIgnoreCase(host)||h.toLowerCase(Locale.ROOT).endsWith("."+host));}catch(Exception e){return false;}});
-        return new Geo(provider,model,query,answer,answer.toLowerCase(Locale.ROOT).matches("(?s).*oreo\\s*studios.*"),List.copyOf(urls),own,urls.isEmpty()?"NO_CITATIONS":"CITATIONS_PRESENT");
+        boolean mention=mentionsCompany(answer,companyName);
+        List<Recommendation> recommendations=new ArrayList<>();
+        if(!mention)recommendations.add(new Recommendation("HIGH","Explain your relevant services",
+            "Improve accurate, useful landing-page content answering this buyer question, with explicit company identity and evidence. Do not copy competitor claims.",true));
+        if(!own)recommendations.add(new Recommendation("HIGH","Make your business pages easy to find and understand",
+            "Check indexability, titles, canonical links, internal links and valid Organization schema where appropriate. A code change cannot force AI engines to cite you.",true));
+        recommendations.add(new Recommendation("MEDIUM","Verify independent reputation and citations",
+            "Earn legitimate, relevant third-party references and keep business listings accurate. SARAH cannot create genuine external mentions just by editing your website.",false));
+        recommendations.add(new Recommendation("MEDIUM","Repeat the measurement",
+            "Test several neutral questions and providers over time. One model response is a sample, not an authoritative ranking.",false));
+        return new Geo(provider,model,query,answer,mention,List.copyOf(urls),own,
+            urls.isEmpty()?"NO_CITATIONS":"CITATIONS_PRESENT",List.copyOf(recommendations),
+            "Single query and provider sample; no ranking or citation outcome is guaranteed.");
+    }
+    static boolean mentionsCompany(String answer,String companyName){
+        if(answer==null||companyName==null||companyName.isBlank())return false;
+        String brand=companyName.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]","");
+        String text=answer.toLowerCase(Locale.ROOT).replaceAll("[^\\p{L}\\p{N}]","");
+        return brand.length()>=4 && text.contains(brand);
     }
     private static void collect(JsonNode node,List<String> texts,Set<String> urls){
         if(node.isArray()){node.forEach(x->collect(x,texts,urls));return;}

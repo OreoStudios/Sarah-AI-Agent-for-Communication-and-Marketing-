@@ -116,7 +116,7 @@ public class SeoController {
                     String s=request.strategy();if(!Set.of("mobile","desktop").contains(s))throw new IllegalArgumentException("Invalid strategy");
                     yield save(kind,u+" "+s,providers.speed(u.toString(),s));
                 }
-                case "geo" -> {String q=bounded(request.query(),300);String p=bounded(request.provider(),30);yield save(kind,p+": "+q,providers.geo(p,q,crawler.host()));}
+                case "geo" -> {String q=bounded(request.query(),300);String p=bounded(request.provider(),30);yield save(kind,p+": "+q,providers.geo(p,q,crawler.host(),brand.active().companyName()));}
                 default -> throw new IllegalArgumentException("Unknown report");
             };
         });
