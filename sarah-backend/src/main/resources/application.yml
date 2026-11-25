@@ -28,6 +28,9 @@ spring:
     password: ${SARAH_MAIL_PASSWORD:}
     properties:
       mail.smtp.auth: ${SARAH_MAIL_AUTH:true}
+      mail.smtp.connectiontimeout: 5000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
       mail.smtp.starttls.enable: ${SARAH_MAIL_STARTTLS:true}
 
 server:

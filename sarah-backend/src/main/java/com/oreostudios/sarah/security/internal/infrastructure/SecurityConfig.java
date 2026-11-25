@@ -67,7 +67,8 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf
                 .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
-                .csrfTokenRequestHandler(csrfHandler))
+                .csrfTokenRequestHandler(csrfHandler)
+                .ignoringRequestMatchers(new org.springframework.security.web.util.matcher.AntPathRequestMatcher("/api/public/marketing/unsubscribe/*", "POST")))
             .addFilterAfter(new CsrfCookieFilter(), BasicAuthenticationFilter.class)
             .securityContext(ctx -> ctx.securityContextRepository(contextRepository))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
@@ -77,6 +78,8 @@ public class SecurityConfig {
                 .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                 // Guests may only onboard/authenticate. No access to the agents or private data.
                 .requestMatchers("/api/auth/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/public/marketing/unsubscribe/*").permitAll()
+                .requestMatchers(HttpMethod.POST, "/api/public/marketing/unsubscribe/*").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/v1/autonomy/**").hasRole("OWNER")
                 .requestMatchers("/api/v1/**").hasRole("OWNER")
                 .requestMatchers("/api/**").authenticated()
