@@ -132,12 +132,17 @@ public class SeoFixService {
         if(!SHA.matcher(treeSha).matches())throw gateway();
         JsonNode tree=get(gh,repo.path()+"/git/trees/"+treeSha+"?recursive=1");
         if(tree.path("truncated").asBoolean(true))throw new ResponseStatusException(HttpStatus.CONFLICT,"Repository tree too large for safe auto-remediation");
-        List<SourceFile> files=sourceFiles(gh,repo,tree);
+        List<SourceFile> files=sourceFiles(gh,repo,tree,audit,brand.active().website());
         if(files.isEmpty())throw new ResponseStatusException(HttpStatus.CONFLICT,"No small website source files were found to edit");
         JsonNode proposal=generate(audit,files);
         JsonNode edits=proposal.path("edits");
-        if(!edits.isArray()||edits.isEmpty()||edits.size()>8)
-            throw new ResponseStatusException(HttpStatus.CONFLICT,"No small, safe code fixes could be generated from this audit");
+        if(!edits.isArray()||edits.isEmpty()||edits.size()>8){
+            String reason=proposal.path("summary").asText("").replaceAll("[\\r\\n]+"," ").strip();
+            if(reason.length()>180)reason=reason.substring(0,180);
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Astra proposed no supported code edits for the selected site files. "
+                 +(reason.isBlank()?"Try an audit with actionable metadata or broken-link findings.":reason));
+        }
 
         Map<String,String> originals=new LinkedHashMap<>();
         for(SourceFile f:files)originals.put(f.path(),f.content());
@@ -241,32 +246,138 @@ public class SeoFixService {
         }
     }
 
-    private List<SourceFile> sourceFiles(RestClient gh,Repo repo,JsonNode tree){
-        List<JsonNode> choices=new ArrayList<>();
-        for(JsonNode e:tree.path("tree")){
-            String path=e.path("path").asText("");
-            if("blob".equals(e.path("type").asText())&&"100644".equals(e.path("mode").asText())&&
-               e.path("size").asLong(100000)<16000&&allowedPath(path)&&
-               SHA.matcher(e.path("sha").asText("")).matches())choices.add(e);
+    /**
+     * Determine the actual website source files from the audited URL paths. This
+     * intentionally does not select arbitrary files merely because they are named
+     * "page.tsx" or contain the word SEO (which previously picked SARAH's own code).
+     */
+    private List<SourceFile> sourceFiles(RestClient gh,Repo repo,JsonNode tree,Audit audit,String website){
+        Map<String,Integer> expected=auditedWebsitePaths(audit.report(),audit.kind(),website);
+        Map<String,JsonNode> matches=new LinkedHashMap<>();
+        Map<String,Integer> score=new HashMap<>();
+        int oversized=0;
+        for(JsonNode item:tree.path("tree")){
+            if(!"blob".equals(item.path("type").asText())||
+                !"100644".equals(item.path("mode").asText()))continue;
+            String path=item.path("path").asText("");
+            if(!allowedPath(path)||!SHA.matcher(item.path("sha").asText("")).matches())continue;
+            int weight=sourceMatchScore(path,expected,audit.kind());
+            if(weight<=0)continue;
+            if(item.path("size").asLong(999999)>16000){oversized++;continue;}
+            matches.put(path,item);
+            score.put(path,weight);
         }
-        choices.sort(Comparator.comparingInt((JsonNode j)->priority(j.path("path").asText())).reversed()
-            .thenComparing(j->j.path("path").asText()));
-        List<SourceFile> files=new ArrayList<>();
+        if(matches.isEmpty()){
+            if(oversized>0)throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "Found "+oversized+" related website file(s), but they exceed the current 16 KB per-file safety limit. "
+                +"Select smaller affected pages or use a dedicated code-review workflow.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                "The connected GitHub repository contains no editable files matching the audited website pages. "
+                +"Connect the SOURCE repository used to deploy "+website+" (not SARAH's own repository).");
+        }
+        List<JsonNode> chosen=new ArrayList<>(matches.values());
+        chosen.sort(Comparator.<JsonNode>comparingInt(j->score.get(j.path("path").asText("")).intValue())
+            .reversed().thenComparing(j->j.path("path").asText("")));
+        List<SourceFile> out=new ArrayList<>();
         int total=0;
-        for(JsonNode e:choices){
-            if(files.size()>=7||total>48000)break;
-            JsonNode blob=get(gh,repo.path()+"/git/blobs/"+e.path("sha").asText());
+        for(JsonNode item:chosen){
+            if(out.size()>=7||total>=47000)break;
+            JsonNode blob=get(gh,repo.path()+"/git/blobs/"+item.path("sha").asText());
             if(!"base64".equals(blob.path("encoding").asText()))continue;
             byte[] bytes;
             try{bytes=Base64.getMimeDecoder().decode(blob.path("content").asText(""));}
             catch(IllegalArgumentException ex){continue;}
-            if(bytes.length>16000||bytes.length<15)continue;
+            if(bytes.length>16000||bytes.length<15||bytes.length+total>48000)continue;
             String content=new String(bytes,StandardCharsets.UTF_8);
             if(content.indexOf('\0')>=0||sensitive(content))continue;
-            files.add(new SourceFile(e.path("path").asText(),content));
+            out.add(new SourceFile(item.path("path").asText(),content));
             total+=bytes.length;
         }
-        return files;
+        if(out.isEmpty())throw new ResponseStatusException(HttpStatus.CONFLICT,
+            "Matched website files could not be read safely. Check file size, encoding or exposed secrets.");
+        return out;
+    }
+
+    static Map<String,Integer> auditedWebsitePaths(String report,String kind,String website){
+        Map<String,Integer> paths=new LinkedHashMap<>();
+        // The homepage is relevant for all on-site SEO / brand visibility checks.
+        paths.put("index.html",40);
+        try{
+            JsonNode root=new ObjectMapper().readTree(report);
+            if("crawl".equals(kind)){
+                for(JsonNode page:root.path("results")){
+                    String path=websitePath(page.path("url").asText(""),website);
+                    if(path==null)continue;
+                    int priority=issuePriority(page.path("issues"));
+                    if(priority>0)paths.merge(path,priority,Math::max);
+                }
+            }else if("action-plan".equals(kind)){
+                for(JsonNode action:root.path("actions")){
+                    String issue=action.path("issue").asText("");
+                    int importance=issueScore(issue);
+                    for(JsonNode url:action.path("sampleUrls")){
+                        String path=websitePath(url.asText(""),website);
+                        if(path!=null)paths.merge(path,importance,Math::max);
+                    }
+                }
+            }
+        }catch(Exception ignored){ /* Keep the safe homepage fallback for GEO/other reports. */ }
+        return paths;
+    }
+
+    static String websitePath(String pageUrl,String website){
+        try{
+            URI expected=URI.create(website), actual=URI.create(pageUrl);
+            String host=expected.getHost(), other=actual.getHost();
+            if(host==null||other==null||
+                !host.replaceFirst("(?i)^www[.]","").equalsIgnoreCase(other.replaceFirst("(?i)^www[.]",""))||
+                !"https".equalsIgnoreCase(actual.getScheme())||actual.getRawQuery()!=null||
+                actual.getRawFragment()!=null)return null;
+            String raw=actual.getRawPath();
+            if(raw==null||raw.isBlank()||"/".equals(raw))return "index.html";
+            if(raw.contains("..")||raw.contains("\\")||raw.contains("%"))return null;
+            String path=raw.startsWith("/")?raw.substring(1):raw;
+            if(path.endsWith("/"))path+="index.html";
+            else if(!path.substring(path.lastIndexOf('/')+1).contains("."))path+="/index.html";
+            return path.length()>180?null:path;
+        }catch(Exception ex){return null;}
+    }
+
+    private static int issuePriority(JsonNode issues){
+        int best=0;
+        for(JsonNode issue:issues)best=Math.max(best,issueScore(issue.asText("")));
+        return best;
+    }
+    private static int issueScore(String issue){
+        if(issue.startsWith("BROKEN_LINK")||issue.equals("MISSING_TITLE")||issue.equals("HTTP_404"))return 950;
+        if(issue.equals("MISSING_DESCRIPTION")||issue.equals("LONG_DESCRIPTION"))return 850;
+        if(issue.equals("MISSING_CANONICAL")||issue.equals("MISSING_IMAGE_ALT")||issue.equals("H1_COUNT"))return 720;
+        if(issue.equals("HEADING_GAP")||issue.equals("THIN_CONTENT_REVIEW")||issue.equals("NO_JSON_LD"))return 550;
+        if(issue.equals("DUPLICATE_TITLE")||issue.equals("EXACT_DUPLICATE_TEXT"))return 220;
+        return 0;
+    }
+
+    /**
+     * Require an exact route-to-file match for crawled URLs, not merely a fuzzy
+     * filename similarity. GEO-only reports may also target service landing pages.
+     */
+    static int sourceMatchScore(String repositoryPath,Map<String,Integer> paths,String kind){
+        if(!allowedPath(repositoryPath))return 0;
+        String[] roots={"frontend/","public/","web/","site/","www/","src/main/resources/static/",""};
+        String matched=null;
+        for(String root:roots){
+            if(!repositoryPath.startsWith(root))continue;
+            String relative=repositoryPath.substring(root.length());
+            if(paths.containsKey(relative)){matched=relative;break;}
+        }
+        if(matched!=null)return paths.get(matched)+Math.max(0,30-repositoryPath.length()/8);
+        // Only on GEO queries: narrow suggestions to ordinary service landing pages
+        // where truthful company context could improve relevance.
+        if("geo".equals(kind)&&repositoryPath.startsWith("frontend/")&&
+            repositoryPath.endsWith("/index.html")&&
+            (repositoryPath.startsWith("frontend/services/")||
+             repositoryPath.startsWith("frontend/creation-site-")))return 120;
+        return 0;
     }
 
     static boolean allowedPath(String path){
