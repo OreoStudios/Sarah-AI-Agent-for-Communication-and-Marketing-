@@ -13,6 +13,8 @@ import java.net.URI;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.time.Instant;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @RestController
 @RequestMapping("/api/v1/seo")
@@ -25,8 +27,10 @@ public class SeoController {
     private final ObjectMapper json;
     private final Environment env;
     private final AtomicBoolean busy=new AtomicBoolean();
-    public SeoController(SiteCrawler crawler,SeoProviders providers,JdbcTemplate db,ObjectMapper json,Environment env,BrandFacade brand){
-        this.crawler=crawler;this.providers=providers;this.db=db;this.json=json;this.env=env;this.brand=brand;
+    private final SeoJobs jobs;
+    private final TransactionTemplate transactions;
+    public SeoController(SiteCrawler crawler,SeoProviders providers,JdbcTemplate db,ObjectMapper json,Environment env,BrandFacade brand,SeoJobs jobs,PlatformTransactionManager manager){
+        this.crawler=crawler;this.providers=providers;this.db=db;this.json=json;this.env=env;this.brand=brand;this.jobs=jobs;this.transactions=new TransactionTemplate(manager);
     }
     record Request(String target,String keyword,String provider,String query,String url,String strategy,boolean confirmSubmission){}
     @GetMapping("/history")
@@ -45,6 +49,52 @@ public class SeoController {
         db.update("INSERT INTO seo_snapshot(kind,subject,report) VALUES (?,?,CAST(? AS jsonb))",kind,subject,result.toString());
         return result;
     }
+    private UUID workspaceId(){
+        return UUID.fromString(db.queryForObject("SELECT current_setting('sarah.workspace_id')",String.class));
+    }
+    private long snapshot(String kind,String subject,Object value){
+        return Objects.requireNonNull(db.queryForObject(
+            "INSERT INTO seo_snapshot(kind,subject,report) VALUES (?,?,CAST(? AS jsonb)) RETURNING id",
+            Long.class,kind,subject,json.valueToTree(value).toString()));
+    }
+    private long storeJob(UUID workspace,String kind,String subject,Object value,Map<String,Object> actionPlan){
+        return Objects.requireNonNull(transactions.execute(status -> {
+            db.execute("SET LOCAL ROLE sarah_workspace_runtime");
+            db.queryForObject("SELECT set_config('sarah.workspace_id', ?, true)",String.class,workspace.toString());
+            if(actionPlan!=null) snapshot("action-plan",subject,actionPlan);
+            return snapshot(kind,subject,value);
+        }));
+    }
+    @PostMapping("/jobs/crawl")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public SeoJobs.View startCrawl(){
+        UUID workspace=workspaceId();
+        SiteCrawler site=companyCrawler();
+        return jobs.start(workspace,"crawl",progress -> {
+            var report=site.crawl(progress);
+            progress.accept(new SeoJobs.Progress("Saving report",report.pages(),report.pages(),
+                report.results().stream().mapToInt(p->p.issues().size()).sum()));
+            return storeJob(workspace,"crawl",site.host(),report,plan(report));
+        });
+    }
+    @PostMapping("/jobs/geo")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public SeoJobs.View startGeo(@RequestBody Request request){
+        UUID workspace=workspaceId();
+        SiteCrawler site=companyCrawler();
+        String q=bounded(request.query(),300), p=bounded(request.provider(),30);
+        if(!Set.of("openai","anthropic","gemini").contains(p)) throw new IllegalArgumentException("Unknown AI provider");
+        String company=brand.active().companyName();
+        return jobs.start(workspace,"geo",progress -> {
+            progress.accept(new SeoJobs.Progress("Waiting for "+p+" web search",0,0,0));
+            var report=providers.geo(p,q,site.host(),company);
+            progress.accept(new SeoJobs.Progress("Saving report",0,0,0));
+            return storeJob(workspace,"geo",p+": "+q,report,null);
+        });
+    }
+    @GetMapping("/jobs/{id}")
+    public SeoJobs.View job(@PathVariable UUID id){return jobs.get(workspaceId(),id);}
+
     @PostMapping("/crawl")
     public JsonNode crawl(){
         SiteCrawler crawler = companyCrawler();
@@ -144,8 +194,9 @@ public class SeoController {
     private JsonNode exclusive(java.util.function.Supplier<JsonNode> action){
         if(!busy.compareAndSet(false,true))throw new ResponseStatusException(HttpStatus.CONFLICT,"SEO run already active");
         try{return action.get();}
+        catch(ResponseStatusException e){throw e;}
         catch(IllegalArgumentException e){throw new ResponseStatusException(HttpStatus.BAD_REQUEST,"Invalid SEO input");}
-        catch(RuntimeException e){throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,"SEO report failed; check provider configuration, quota or connectivity");}
+        catch(RuntimeException e){throw new ResponseStatusException(HttpStatus.BAD_GATEWAY,SeoJobs.safeError("provider",e));}
         finally{busy.set(false);}
     }
 }
