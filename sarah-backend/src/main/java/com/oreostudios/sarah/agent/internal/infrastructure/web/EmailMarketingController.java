@@ -55,7 +55,7 @@ public class EmailMarketingController {
     @PostMapping("/unsubscribe")
     public void suppress(@RequestBody Map<String,String> input,Authentication auth){
         String email=address(input.get("email"));
-        db.update("INSERT INTO marketing_subscriber(email,consent_evidence,suppressed) VALUES (?,'opt-out',true) ON CONFLICT(email) DO UPDATE SET suppressed=true",email);
+        db.update("INSERT INTO marketing_subscriber(email,consent_evidence,suppressed) VALUES (?,'opt-out',true) ON CONFLICT(workspace_id,email) DO UPDATE SET suppressed=true",email);
         audit.record(auth.getName(),"MARKETING_EMAIL_SUPPRESSED","marketing",null,null);
     }
     @GetMapping("/subscribers")
@@ -93,7 +93,7 @@ public class EmailMarketingController {
             if(!autonomy.isEnabled()){skipped++;continue;}
             Integer consent=db.queryForObject("SELECT count(*) FROM marketing_subscriber WHERE email=? AND suppressed=false",Integer.class,recipient);
             if(consent==null||consent!=1){skipped++;continue;}
-            int quota=db.update("INSERT INTO marketing_email_quota(day,used) VALUES (CURRENT_DATE,1) ON CONFLICT(day) DO UPDATE SET used=marketing_email_quota.used+1 WHERE marketing_email_quota.used<?",dailyLimit);
+            int quota=db.update("INSERT INTO marketing_email_quota(day,used) VALUES (CURRENT_DATE,1) ON CONFLICT(workspace_id,day) DO UPDATE SET used=marketing_email_quota.used+1 WHERE marketing_email_quota.used<?",dailyLimit);
             if(quota!=1){skipped++;continue;}
             if(db.update("INSERT INTO marketing_email_delivery(campaign_id,email,status) VALUES (?,?,'CLAIMED') ON CONFLICT DO NOTHING",id,recipient)!=1){skipped++;continue;}
             try{

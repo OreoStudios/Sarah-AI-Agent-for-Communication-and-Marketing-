@@ -1,6 +1,7 @@
 package com.oreostudios.sarah.scheduling.internal.infrastructure; // Infrastructure layer of the scheduling module.
 
-import com.oreostudios.sarah.publishing.api.PublishingFacade; // Publishing port.
+import com.oreostudios.sarah.publishing.api.PublishingFacade;
+import com.oreostudios.sarah.security.api.WorkspaceJobRunner; // Publishing port.
 import org.slf4j.Logger; // Logging.
 import org.slf4j.LoggerFactory; // Logger factory.
 import org.springframework.scheduling.annotation.Scheduled; // Fixed-delay scheduling.
@@ -21,15 +22,21 @@ public class PublishingScheduler {
     private static final Logger log = LoggerFactory.getLogger(PublishingScheduler.class); // Logger.
 
     private final PublishingFacade publishing; // Publishing port.
+    private final WorkspaceJobRunner tenantJobs;
 
     /** @param publishing publishing port */
-    public PublishingScheduler(PublishingFacade publishing) {
+    public PublishingScheduler(PublishingFacade publishing, WorkspaceJobRunner tenantJobs) {
         this.publishing = publishing;
+        this.tenantJobs = tenantJobs;
     }
 
     /** Polls for due publications on a fixed delay and attempts each. */
     @Scheduled(fixedDelayString = "${sarah.scheduling.publish-interval-ms:30000}")
     public void publishDue() {
+        tenantJobs.forEachWorkspace(id -> publishForCurrentWorkspace());
+    }
+
+    private void publishForCurrentWorkspace() {
         List<UUID> due = publishing.dueIds(Instant.now()); // Find due items.
         if (due.isEmpty()) {
             return;

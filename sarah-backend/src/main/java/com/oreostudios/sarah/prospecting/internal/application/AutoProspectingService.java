@@ -19,6 +19,7 @@ public class AutoProspectingService {
     private final CompanyDiscoveryController discovery; private final JpaProspectRepository repo;
     private final AutonomyFacade autonomy; private final AuditFacade audit; private final JdbcTemplate jdbc;
     private final TransactionTemplate transactions;
+    @Value("${SARAH_WORKSPACE_LEGACY_SCHEDULERS:false}") private boolean legacySchedulersEnabled;
     private final boolean enabled; private final String query,postal,activityPrefix;
     public AutoProspectingService(CompanyDiscoveryController discovery,JpaProspectRepository repo,AutonomyFacade autonomy,
             AuditFacade audit,JdbcTemplate jdbc,org.springframework.transaction.PlatformTransactionManager tx,
@@ -30,7 +31,7 @@ public class AutoProspectingService {
         this.enabled=enabled;this.query=query;this.postal=postal;this.activityPrefix=activityPrefix;
     }
     @Scheduled(cron="${SARAH_PROSPECTING_CRON:0 15 7 * * *}",zone="Europe/Paris")
-    public void daily(){if(enabled&&autonomy.isEnabled()&&!query.isBlank()) run(query,postal,activityPrefix,"system");}
+    public void daily(){if(legacySchedulersEnabled&&enabled&&autonomy.isEnabled()&&!query.isBlank()) run(query,postal,activityPrefix,"system");}
     public record Result(String status,int imported,int existing,int filtered){}
     public Result run(String q,String postalCode,String prefix,String actor){
         if(!autonomy.isEnabled())return new Result("PAUSED",0,0,0);

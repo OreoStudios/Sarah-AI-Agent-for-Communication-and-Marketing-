@@ -4,6 +4,6 @@
  */
 @org.springframework.modulith.ApplicationModule( // Bounded module.
         displayName = "Scheduling",
-        allowedDependencies = {"shared", "publishing :: api"} // Shared building blocks + the publishing engine.
+        allowedDependencies = {"shared", "publishing :: api", "security :: api"} // Shared building blocks + the publishing engine.
 )
 package com.oreostudios.sarah.scheduling; // Root package of the scheduling module.

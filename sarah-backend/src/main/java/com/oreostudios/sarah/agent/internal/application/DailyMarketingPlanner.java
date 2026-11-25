@@ -23,6 +23,7 @@ public class DailyMarketingPlanner {
     private final CampaignFacade campaigns;private final ConnectorFacade connectors;private final PublishingFacade publishing;
     private final ContentAgent content;private final ComplianceAgent compliance;private final LlmClient llm;
     private final PerformanceOptimizer optimizer;private final AuditFacade audit;
+    @Value("${SARAH_WORKSPACE_LEGACY_SCHEDULERS:false}") private boolean legacySchedulersEnabled;
     private final boolean enabled,autoPublish;private final String objective,audience,language,platforms;private final int maxChannels;
     public DailyMarketingPlanner(JdbcTemplate db,AutonomyFacade autonomy,BrandFacade brand,CampaignFacade campaigns,
             ConnectorFacade connectors,PublishingFacade publishing,ContentAgent content,ComplianceAgent compliance,
@@ -40,7 +41,7 @@ public class DailyMarketingPlanner {
         this.language=language;this.platforms=platforms;this.maxChannels=Math.max(1,Math.min(3,maxChannels));
     }
     @Scheduled(cron="${SARAH_DAILY_PLAN_CRON:0 30 7 * * *}",zone="Europe/Paris")
-    public void daily(){if(enabled&&autonomy.isEnabled()&&llm.isLive())run("system");}
+    public void daily(){if(legacySchedulersEnabled&&enabled&&autonomy.isEnabled()&&llm.isLive())run("system");}
     public record PlanResult(String status,UUID campaignId,int drafts,int scheduled,String detail){}
     public PlanResult run(String actor){
         if(!enabled||!autonomy.isEnabled()||!llm.isLive())return new PlanResult("DISABLED",null,0,0,"Enable daily planning, resume activity and configure a live LLM");

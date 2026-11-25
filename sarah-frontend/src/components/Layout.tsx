@@ -25,10 +25,11 @@ const perspective: [string, string][] = [
   ['/prospects', 'Audience'],
   ['/seo', 'SEO & GEO'],
   ['/settings', 'Channels & settings'],
+  ['/team', 'Team'],
 ];
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { me, logout } = useAuth();
+  const { me, logout, workspaces, activeWorkspaceId, selectWorkspace } = useAuth();
   const { dark, toggle } = useTheme();
   const [menu, setMenu] = useState(false);
   const { pathname } = useLocation();
@@ -84,7 +85,18 @@ export function Layout({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="rail-footer">
-            <div className="workspace-label">Your workspace</div>
+            <div className="workspace-label">Company workspace</div>
+            {!preview && workspaces.length > 0 && (
+              <label style={{ display: 'block', marginBottom: '0.75rem' }}>
+                <span className="sr-only">Active company</span>
+                <select aria-label="Active company workspace" value={activeWorkspaceId ?? ''}
+                  style={{ maxWidth: '100%', width: '100%', padding: '0.6rem', borderRadius: '0.4rem' }}
+                  onChange={(e) => { void selectWorkspace(e.target.value); }}>
+                  {workspaces.map(w => <option value={w.id} key={w.id}>{w.name} · {w.role}</option>)}
+                </select>
+              </label>
+            )}
+            {!preview && <NavLink to="/workspaces/new" className="nav-link" style={{ marginBottom: '0.6rem' }}>+ Add a company</NavLink>}
             <div className="account" title={me?.email}>{me?.email}</div>
             <div className="rail-controls">
               <button onClick={toggle} aria-label={`Switch to ${dark ? 'light' : 'dark'} theme`}>
@@ -98,7 +110,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
       <div className="main-area">
         <header className="masthead">
-          <span>Oreo Studios <span className="separator">/</span> {section}</span>
+          <span>{workspaces.find(w => w.id === activeWorkspaceId)?.name ?? 'Oreo Studios'} <span className="separator">/</span> {section}</span>
           <span className="edition">Marketing, with intent</span>
         </header>
         <main id="main-content" tabIndex={-1} className="page">
