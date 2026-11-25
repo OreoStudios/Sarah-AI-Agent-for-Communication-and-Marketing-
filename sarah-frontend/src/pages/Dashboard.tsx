@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import axios from 'axios';
 import { MarketingWorkspace } from './MarketingWorkspace';
 import { Link } from 'react-router-dom';
 import { api, type DashboardSummary } from '../api';
@@ -12,7 +13,13 @@ export function Dashboard() {
     setError(null);
     api.get<DashboardSummary>('/api/v1/dashboard/summary')
       .then((r) => setData(r.data))
-      .catch(() => setError('Could not reach the backend. Is it running on :8080?'));
+      .catch((error: unknown) => {
+        const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+        setError(status === 403 ? 'Access denied to this company workspace. Check your membership and role.'
+          : status === 401 ? 'Your session expired. Sign in again.'
+          : status ? `Dashboard request failed (HTTP ${status}). Please retry or check server logs.`
+          : 'The dashboard API could not be reached. Check the proxy and network connection.');
+      });
   }
   useEffect(load, []);
 

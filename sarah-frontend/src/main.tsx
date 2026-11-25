@@ -12,6 +12,7 @@ import { Calendar } from './pages/Calendar';
 import { Prospects } from './pages/Prospects';
 import { Seo } from './pages/Seo';
 import { Settings } from './pages/Settings';
+import { WorkspaceOnboarding } from './pages/WorkspaceOnboarding';
 import { preview } from './preview';
 
 function Workspace() {
@@ -25,6 +26,7 @@ function Workspace() {
         <Route path="/prospects" element={<Prospects />} />
         <Route path="/seo" element={<Seo />} />
         <Route path="/settings" element={<Settings />} />
+        <Route path="/workspaces/new" element={<WorkspaceOnboarding />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>
@@ -33,10 +35,12 @@ function Workspace() {
 
 /** Guests meet Sarah (and sign in by conversation); authenticated users get the workspace. */
 function Gated() {
-  const { me, loading } = useAuth();
+  const { me, loading, workspaces, activeWorkspaceId } = useAuth();
   if (preview) return <Workspace />;
   if (loading) return <div className="gate"><Loading /></div>;
-  return me ? <Workspace /> : <GuestGate />;
+  if (!me) return <GuestGate />;
+  if (!activeWorkspaceId || workspaces.length === 0) return <WorkspaceOnboarding />;
+  return <Workspace key={activeWorkspaceId} />;
 }
 
 createRoot(document.getElementById('root')!).render(
