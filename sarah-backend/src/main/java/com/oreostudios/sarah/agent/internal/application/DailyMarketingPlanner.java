@@ -77,7 +77,7 @@ public class DailyMarketingPlanner {
                 if(autoPublish&&approved&&p!=Platform.INSTAGRAM&&p!=Platform.REDDIT&&autonomy.isEnabled()){
                     var channel=channels.stream().filter(c->c.type()==p&&c.live()&&c.status()==ConnectorStatus.CONNECTED).findFirst();
                     if(channel.isPresent()){
-                        publishing.schedule(new SchedulePublicationCommand(campaignId,draft.id(),channel.get().id(),p,gen.body(),Instant.now().plus(Duration.ofMinutes(5+scheduled*30L)),1,"daily:"+today+":"+p.code()));
+                        publishing.schedule(new SchedulePublicationCommand(campaignId,draft.id(),channel.get().id(),p,gen.body(),Instant.now().plus(Duration.ofMinutes(5+scheduled*30L)),1,campaignId+":"+p.code()+":"+draft.id()));
                         scheduled++;
                     }
                 }

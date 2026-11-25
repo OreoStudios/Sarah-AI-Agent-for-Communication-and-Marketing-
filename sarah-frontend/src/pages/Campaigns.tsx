@@ -77,7 +77,7 @@ export function Campaigns() {
                       {d.title && <div style={{ fontWeight: 600, marginBottom: '0.3rem' }}>{d.title}</div>}
                       <div className="copy">{d.body}</div>
                       {d.complianceNotes && <div className="notes">{d.complianceNotes}</div>}
-                      {d.status === 'APPROVED' && ['instagram', 'reddit'].includes(d.platform.toLowerCase()) && <SocialReview draft={d} />}
+                      {d.status === 'APPROVED' && <SocialReview draft={d} />}
                     </div>
                   ))}
                 </div>
@@ -161,6 +161,7 @@ function CreateForm({ onCreated }: { onCreated: () => void }) {
 
 function SocialReview({ draft }: { draft: Draft }) {
   const [channels, setChannels] = useState<Channel[]>([]);
+  const needsTarget = ['instagram', 'reddit'].includes(draft.platform.toLowerCase());
   const [channel, setChannel] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -190,8 +191,8 @@ function SocialReview({ draft }: { draft: Draft }) {
     </label>
     {channels.find(c => c.id === channel)?.reviewTarget && <p className="muted" style={{ overflowWrap: 'anywhere' }}>{channels.find(c => c.id === channel)?.reviewTarget}</p>}
     <label className="check"><input type="checkbox" checked={confirmed} onChange={e => setConfirmed(e.target.checked)} />
-      I reviewed this draft and the channel's configured media or title, and confirm permission and community rules.</label>
-    <button className="button" disabled={!confirmed || !channel || busy || !channels.find(c => c.id === channel)?.reviewTarget} onClick={approve}>Approve and schedule</button>
+      I reviewed this draft and the selected destination, including any configured media/title, and confirm permission and community rules.</label>
+    <button className="button" disabled={!confirmed || !channel || busy || (needsTarget && !channels.find(c => c.id === channel)?.reviewTarget)} onClick={approve}>Approve and schedule</button>
     {message && <p role="status">{message}</p>}
   </div>;
 }

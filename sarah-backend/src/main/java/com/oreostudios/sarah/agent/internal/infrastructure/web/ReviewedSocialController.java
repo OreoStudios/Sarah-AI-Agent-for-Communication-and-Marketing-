@@ -32,14 +32,18 @@ public class ReviewedSocialController {
         DraftView d=campaigns.draftsFor(a.campaignId()).stream().filter(x->x.id().equals(a.draftId())).findFirst()
                 .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Draft not found"));
         Platform platform=Platform.fromCode(d.platform());
-        if(d.status()!=DraftStatus.APPROVED|| (platform!=Platform.REDDIT&&platform!=Platform.INSTAGRAM))
-            throw new ResponseStatusException(HttpStatus.CONFLICT,"An approved Instagram or Reddit draft is required");
+        if(d.status()!=DraftStatus.APPROVED)
+            throw new ResponseStatusException(HttpStatus.CONFLICT,"An approved draft is required");
         ChannelView channel=connectors.listChannels().stream().filter(x->x.id().equals(a.channelId())).findFirst()
                 .orElseThrow(()->new ResponseStatusException(HttpStatus.NOT_FOUND,"Channel not found"));
         if(channel.type()!=platform||!channel.live()||channel.status()!=ConnectorStatus.CONNECTED)
             throw new ResponseStatusException(HttpStatus.CONFLICT,"Select a connected live channel for this platform");
+        var existing=publishing.forCampaign(a.campaignId()).stream().filter(p->d.id().equals(p.draftId())).findFirst();
+        if(existing.isPresent())return existing.get();
+        String key=(platform==Platform.INSTAGRAM||platform==Platform.REDDIT)
+                ?"reviewed-social:"+d.id():a.campaignId()+":"+platform.code()+":"+d.id();
         PublicationView result=publishing.schedule(new SchedulePublicationCommand(a.campaignId(),d.id(),channel.id(),platform,
-                d.body(),Instant.now(),1,"reviewed-social:"+d.id()));
+                d.body(),Instant.now(),1,key));
         audit.record(auth.getName(),"SOCIAL_OWNER_APPROVED","publication",result.id().toString(),"platform="+platform.code());
         return result;
     }
