@@ -1,0 +1,2 @@
+CREATE TABLE creative_daily_quota (day DATE PRIMARY KEY, used INT NOT NULL CHECK(used>=0));
+CREATE TABLE creative_asset (id UUID PRIMARY KEY, brief TEXT NOT NULL, model VARCHAR(100) NOT NULL, size VARCHAR(20) NOT NULL, status VARCHAR(20) NOT NULL, image BYTEA, created_at TIMESTAMPTZ NOT NULL DEFAULT now());
