@@ -37,11 +37,20 @@ public class AutoProspectingService {
         if(q==null||q.strip().length()<3||q.length()>120||prefix==null||!prefix.matches("[0-9]{2}(?:\\.[0-9]{1,2})?"))
             throw new IllegalArgumentException("Specify a business search and target NAF activity prefix");
         LocalDate today=LocalDate.now(ZoneId.of("Europe/Paris"));
-        int claim=jdbc.update("INSERT INTO prospect_discovery_run(run_day,status) VALUES (?, 'RUNNING') ON CONFLICT DO NOTHING",Date.valueOf(today));
+        String normalized=q.strip()+"|"+(postalCode==null?"":postalCode.strip())+"|"+prefix;
+        String queryKey=UUID.nameUUIDFromBytes(normalized.getBytes(java.nio.charset.StandardCharsets.UTF_8)).toString();
+        Integer previous=dbPage(queryKey);
+        int page=previous==null?1:previous%10+1;
+        int claim=jdbc.update("INSERT INTO prospect_discovery_run(run_day,status,query_key,page) VALUES (?, 'RUNNING',?,?) ON CONFLICT DO NOTHING",Date.valueOf(today),queryKey,page);
         if(claim==0)return new Result("ALREADY_RUN",0,0,0);
         int added=0,existing=0,filtered=0;
         try {
-            for(var c:discovery.search(q,postalCode==null||postalCode.isBlank()?null:postalCode,1).candidates()){
+            var candidates=discovery.search(q,postalCode==null||postalCode.isBlank()?null:postalCode,page).candidates();
+            if(candidates.isEmpty()&&page>1){
+                candidates=discovery.search(q,postalCode==null||postalCode.isBlank()?null:postalCode,1).candidates();
+                jdbc.update("UPDATE prospect_discovery_run SET page=1 WHERE run_day=?",Date.valueOf(today));
+            }
+            for(var c:candidates){
                 if(!autonomy.isEnabled())break;
                 if(!c.activityCode().startsWith(prefix)){filtered++;continue;}
                 Boolean inserted=transactions.execute(status->{
@@ -62,5 +71,9 @@ public class AutoProspectingService {
         }
     }
     static int score(String code,String prefix,String locality){return code.startsWith(prefix)?(locality==null||locality.isBlank()?60:75):0;}
-    public List<Map<String,Object>> history(){return jdbc.queryForList("SELECT run_day,status,imported,created_at FROM prospect_discovery_run ORDER BY run_day DESC LIMIT 30");}
+    private Integer dbPage(String key){
+        var pages=jdbc.query("SELECT page FROM prospect_discovery_run WHERE query_key=? AND status='DONE' ORDER BY run_day DESC LIMIT 1",(rs,i)->rs.getInt(1),key);
+        return pages.isEmpty()?null:pages.getFirst();
+    }
+    public List<Map<String,Object>> history(){return jdbc.queryForList("SELECT run_day,status,imported,page,created_at FROM prospect_discovery_run ORDER BY run_day DESC LIMIT 30");}
 }

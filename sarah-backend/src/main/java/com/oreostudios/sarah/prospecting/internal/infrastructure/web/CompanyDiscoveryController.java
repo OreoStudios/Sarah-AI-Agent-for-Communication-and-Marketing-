@@ -2,7 +2,6 @@ package com.oreostudios.sarah.prospecting.internal.infrastructure.web;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
-import org.springframework.stereotype.Service;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
