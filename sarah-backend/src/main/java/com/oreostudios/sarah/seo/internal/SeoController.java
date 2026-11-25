@@ -1,6 +1,7 @@
 package com.oreostudios.sarah.seo.internal;
 
 import com.fasterxml.jackson.databind.*;
+import com.oreostudios.sarah.brand.api.BrandFacade;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpStatus;
@@ -18,13 +19,14 @@ import java.time.Instant;
 @PreAuthorize("hasRole('OWNER')")
 public class SeoController {
     private final SiteCrawler crawler;
+    private final BrandFacade brand;
     private final SeoProviders providers;
     private final JdbcTemplate db;
     private final ObjectMapper json;
     private final Environment env;
     private final AtomicBoolean busy=new AtomicBoolean();
-    public SeoController(SiteCrawler crawler,SeoProviders providers,JdbcTemplate db,ObjectMapper json,Environment env){
-        this.crawler=crawler;this.providers=providers;this.db=db;this.json=json;this.env=env;
+    public SeoController(SiteCrawler crawler,SeoProviders providers,JdbcTemplate db,ObjectMapper json,Environment env,BrandFacade brand){
+        this.crawler=crawler;this.providers=providers;this.db=db;this.json=json;this.env=env;this.brand=brand;
     }
     record Request(String target,String keyword,String provider,String query,String url,String strategy,boolean confirmSubmission){}
     @GetMapping("/history")
@@ -44,7 +46,9 @@ public class SeoController {
         return result;
     }
     @PostMapping("/crawl")
-    public JsonNode crawl(){return exclusive(()->{
+    public JsonNode crawl(){
+        SiteCrawler crawler = companyCrawler();
+        return exclusive(()->{
         var report=crawler.crawl();save("action-plan",crawler.host(),plan(report));return save("crawl",crawler.host(),report);
     });}
     private void attempt(String kind,String subject,java.util.function.Supplier<Object> action){
@@ -86,6 +90,7 @@ public class SeoController {
     }
     @PostMapping("/{kind:backlinks|summary|keywords|ranked|speed|geo|backlink-trend|referring-domains|lost-links|bing|indexnow}")
     public JsonNode analyze(@PathVariable String kind,@RequestBody Request request){
+        SiteCrawler crawler = companyCrawler();
         return exclusive(()->{
             String target=request.target()==null||request.target().isBlank()?crawler.host():request.target().strip();
             if(!target.matches("(?i)[a-z0-9](?:[a-z0-9.-]{0,250}[a-z0-9])?\\.[a-z]{2,63}")||target.contains(".."))
@@ -115,6 +120,25 @@ public class SeoController {
                 default -> throw new IllegalArgumentException("Unknown report");
             };
         });
+    }
+    /**
+     * Run manual SEO actions against the selected company, not the server-wide
+     * SARAH_SEO_ORIGIN default. SiteCrawler performs public-IP and robots checks.
+     */
+    private SiteCrawler companyCrawler() {
+        String website = brand.active().website();
+        if (website == null || website.isBlank())
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Set your company website in Brand settings first");
+        try {
+            URI uri = URI.create(website);
+            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null ||
+                uri.getUserInfo() != null || uri.getPort() != -1)
+                throw new IllegalArgumentException("Expected HTTPS website");
+            int max = env.getProperty("SARAH_SEO_MAX_PAGES", Integer.class, 100);
+            return new SiteCrawler("https://" + uri.getHost(), max);
+        } catch (RuntimeException ex) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Configure a valid HTTPS company website");
+        }
     }
     private String bounded(String s,int n){if(s==null||s.isBlank()||s.length()>n)throw new IllegalArgumentException("Invalid input");return s.strip();}
     private JsonNode exclusive(java.util.function.Supplier<JsonNode> action){
