@@ -113,8 +113,11 @@ services:
       SARAH_DAILY_MAX_CHANNELS: "${SARAH_DAILY_MAX_CHANNELS:-2}"
       SARAH_DAILY_PLAN_CRON: "${SARAH_DAILY_PLAN_CRON:-0 30 7 * * *}"
       SARAH_OUTBOUND_HOSTS: ${SARAH_OUTBOUND_HOSTS:-discord.com,discordapp.com}
-    ports:
-      - "8080:8080"
+    # Spring Boot is only reached by the frontend over Docker's internal
+    # network. Never publish port 8080 on the host: CloudPanel/Coolify and
+    # other existing services may already use it.
+    expose:
+      - "8080"
     restart: unless-stopped
 
   frontend:
@@ -122,8 +125,10 @@ services:
       context: ./sarah-frontend
     depends_on:
       - backend
+    # CloudPanel on the host handles public HTTPS. Bind SARAH to loopback
+    # only and keep MONIQUE's existing host port 8088 untouched.
     ports:
-      - "8088:80"
+      - "127.0.0.1:${SARAH_FRONTEND_PORT:-8089}:80"
     restart: unless-stopped
 
 volumes:
