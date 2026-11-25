@@ -71,15 +71,37 @@ cp .env.example .env
 docker compose up --build
 ```
 
-- Dashboard: <http://localhost:8088>
-- Backend API + Swagger UI: <http://localhost:8080/swagger-ui.html>
-- Health: <http://localhost:8080/actuator/health>
+- Dashboard: <http://localhost:8089> (loopback only; can override with `SARAH_FRONTEND_PORT`)
+- Backend API: internal Docker service `backend:8080`; accessible through the frontend's `/api/` reverse proxy
+- Backend health: available to Docker on `backend:8080/actuator/health` (not a published host port)
 - Log in with the seeded owner (`SARAH_ADMIN_EMAIL` / `SARAH_ADMIN_PASSWORD`, default
   `owner@oreostudios.com` / `change-me-now`). **Change the password after first login.**
 
 The platform runs in mock LLM mode by default (`SARAH_LLM_PROVIDER=mock`): no API key
 required. Set `SARAH_LLM_PROVIDER=anthropic` and `ANTHROPIC_API_KEY=…` for live generation
 with Claude.
+
+## CloudPanel + Coolify on an existing Hetzner host
+
+SARAH's backend intentionally does **not** publish host port 8080: the
+bundled frontend Nginx proxies `/api/` to `http://backend:8080`
+using Docker DNS. The frontend binds by default to
+`127.0.0.1:8089:80`, avoiding MONIQUE's existing port 8088 and
+preventing direct public access to the HTTP frontend.
+
+Before deployment, check that 8089 is unused on the **host** (for example
+`sudo ss -ltnp | grep ':8089 '`). If taken, set
+`SARAH_FRONTEND_PORT` in Coolify to another free host port.
+Then create a CloudPanel reverse proxy for
+`https://sarah.oreostudios.fr` pointing to
+`http://127.0.0.1:8089` (or your chosen port) with Let's Encrypt.
+Coolify's custom/no-proxy mode should not also route the same hostname.
+
+Set `SARAH_COOKIE_SECURE=true`, `SARAH_CORS_ORIGINS=https://sarah.oreostudios.fr`
+and a working SMTP account, plus unique secrets, before external exposure.
+Do not change or restart Pterodactyl, MONIQUE, Docker, host Nginx,
+or CloudPanel to free ports. Do not use `docker compose down -v`:
+it **deletes the SARAH database volume**.
 
 ## Local development (without Docker)
 
